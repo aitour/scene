@@ -141,7 +141,7 @@ NSString* loadModel(NSObject<FlutterPluginRegistrar>* _registrar, NSDictionary* 
 //  return predictions;
 //}
 
-NSData * runModelOnImage(NSDictionary* args) {
+NSData * runModelOnImage_(NSDictionary* args) {
   const NSString* image_path = args[@"path"];
   const int num_threads = [args[@"numThreads"] intValue];
   const int wanted_width = [args[@"inputSize"] intValue];
@@ -149,30 +149,30 @@ NSData * runModelOnImage(NSDictionary* args) {
   const int wanted_channels = [args[@"numChannels"] intValue];
   const float input_mean = [args[@"imageMean"] floatValue];
   const float input_std = [args[@"imageStd"] floatValue];
-  
+
   //NSMutableArray* empty = [@[] mutableCopy];
-  
+
   if (!interpreter) {
     NSLog(@"Failed to construct interpreter.");
     return nullptr;
   }
-  
+
   if (num_threads != -1) {
     interpreter->SetNumThreads(num_threads);
   }
-  
+
   int input = interpreter->inputs()[0];
-  
+
   if (interpreter->AllocateTensors() != kTfLiteOk) {
     NSLog(@"Failed to allocate tensors.");
     return nullptr;
   }
-  
+
   int image_width;
   int image_height;
   int image_channels;
   std::vector<uint8_t> image_data = LoadImageFromFile([image_path UTF8String], &image_width, &image_height, &image_channels);
-  
+
   assert(image_channels >= wanted_channels);
   uint8_t* in = image_data.data();
   float* out = interpreter->typed_tensor<float>(input);
@@ -189,15 +189,15 @@ NSData * runModelOnImage(NSDictionary* args) {
       }
     }
   }
-  
+
   if (interpreter->Invoke() != kTfLiteOk) {
     NSLog(@"Failed to invoke!");
     return nullptr;
   }
-  
+
   float* output = interpreter->typed_output_tensor<float>(0);
   return [NSData dataWithBytes:output length:1280 * 4];
-  
+
 //  if (output == NULL)
 //    return nullptr;
 //
@@ -205,6 +205,70 @@ NSData * runModelOnImage(NSDictionary* args) {
 //  const int kNumResults = [args[@"numResults"] intValue];
 //  const float kThreshold = [args[@"threshold"] floatValue];
 //  return GetTopN(output, output_size, kNumResults, kThreshold);
+}
+
+
+NSData * runModelOnImage(NSDictionary* args) {
+    const NSString* image_path = args[@"path"];
+    const int num_threads = [args[@"numThreads"] intValue];
+    const int wanted_width = [args[@"inputSize"] intValue];
+    const int wanted_height = [args[@"inputSize"] intValue];
+    const int wanted_channels = [args[@"numChannels"] intValue];
+    const float input_mean = [args[@"imageMean"] floatValue];
+    const float input_std = [args[@"imageStd"] floatValue];
+    
+    //NSMutableArray* empty = [@[] mutableCopy];
+    
+    if (!interpreter) {
+        NSLog(@"Failed to construct interpreter.");
+        return nullptr;
+    }
+    
+    if (num_threads != -1) {
+        interpreter->SetNumThreads(num_threads);
+    }
+    
+    int input = interpreter->inputs()[0];
+    
+    if (interpreter->AllocateTensors() != kTfLiteOk) {
+        NSLog(@"Failed to allocate tensors.");
+        return nullptr;
+    }
+    
+    std::vector<std::vector<uint8_t>> image_data = LoadImageFromFile2([image_path UTF8String], wanted_width, 3);
+    float weights[3] = {0.3, 0.4, 0.3};
+    
+    const int feature_len = wanted_width * wanted_width * 3;
+    float composed_feature[feature_len];
+    memset(composed_feature, 0, feature_len);
+    float *input_tensor = interpreter->typed_tensor<float>(input);
+    for (int i = 0; i < 3; i++) {
+        //fill the input tensor
+        for (int k = 0; k < 224*224; k+=3) {
+            input_tensor[k] = image_data[i][k]; //R
+            input_tensor[k+1] = image_data[i][k+1]; //G
+            input_tensor[k+2] = image_data[i][k+2]; //B
+        }
+        
+        if (interpreter->Invoke() != kTfLiteOk) {
+            NSLog(@"Failed to invoke!");
+            return nullptr;
+        }
+        
+        float* output = interpreter->typed_output_tensor<float>(0);
+        for (int j = 0; j < feature_len; j++) {
+            composed_feature[j] += output[j] * weights[i];
+        }
+    }
+    return [NSData dataWithBytes:composed_feature length:1280 * 4];
+    
+    //  if (output == NULL)
+    //    return nullptr;
+    //
+    //  const unsigned long output_size = labels.size();
+    //  const int kNumResults = [args[@"numResults"] intValue];
+    //  const float kThreshold = [args[@"threshold"] floatValue];
+    //  return GetTopN(output, output_size, kNumResults, kThreshold);
 }
 
 //NSMutableArray* runModelOnBinary(NSDictionary* args) {

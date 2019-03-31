@@ -287,8 +287,8 @@ func Predict2(c *gin.Context) {
 		if err != nil {
 			break
 		}
-		
-		feature = append(feature,float64(v))
+
+		feature = append(feature, float64(v))
 	}
 	log.Printf("%v %v %v", feature[2], feature[3], feature[len(feature)-1])
 	//log.Printf("%v", feature)
@@ -303,48 +303,47 @@ func Predict2(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"err": "no reference feature or feature length not match",
 		})
-		log.Printf("refers len:%d, image_feature len:%d, feature len:%d", 
+		log.Printf("refers len:%d, image_feature len:%d, feature len:%d",
 			len(refers), len(refers[0].MobileNetFeature), len(feature))
 		return
 	}
 
 	k := 5
 	if arg := c.Query("k"); len(arg) > 0 {
-		if v , err := strconv.Atoi(arg); err == nil {
+		if v, err := strconv.Atoi(arg); err == nil {
 			k = v
 		}
 	}
 	topK := make([]ArtScore, k)
 	featureNorm := model.Norm(feature)
-    //var scores []float64
+	//var scores []float64
 	for _, ref := range refers {
 		var score float64
 		for i := 0; i < len(ref.MobileNetFeature); i++ {
 			score += ref.MobileNetFeature[i] * feature[i]
 		}
-		//score = score  / (ref.MobileNetFeatureNorm * featureNorm)
-        score = score / featureNorm
-        //scores = append(scores, score)
+		score = score / (ref.MobileNetFeatureNorm * featureNorm)
+		//score = score / featureNorm
+		//scores = append(scores, score)
 
-		for j := k-1; j >= 0; j-- {
-            if j == 0  && score > topK[0].Score {
-                topK =  append(append([]ArtScore{}, ArtScore{ref.ArtID, score}), topK[0:k-1]...)
-            } else if j>0 && score > topK[j].Score && score <= topK[j-1].Score {
-                topK = append(append(append([]ArtScore{}, topK[0:j]...), ArtScore{ref.ArtID, score}), topK[j:k-1]...)
+		for j := k - 1; j >= 0; j-- {
+			if j == 0 && score > topK[0].Score {
+				topK = append(append([]ArtScore{}, ArtScore{ref.ArtID, score}), topK[0:k-1]...)
+			} else if j > 0 && score > topK[j].Score && score <= topK[j-1].Score {
+				topK = append(append(append([]ArtScore{}, topK[0:j]...), ArtScore{ref.ArtID, score}), topK[j:k-1]...)
 				break
 			}
 		}
 	}
-    //sort.Slice(scores, func(i, j int) bool {
-    //    return scores[i] > scores[j]
-    //}) 
-    //ioutil.WriteFile("/usr/local/aitour/aiweb/scores.txt", []byte(fmt.Sprintf("%v", scores)), 0644)
+	//sort.Slice(scores, func(i, j int) bool {
+	//    return scores[i] > scores[j]
+	//})
+	//ioutil.WriteFile("/usr/local/aitour/aiweb/scores.txt", []byte(fmt.Sprintf("%v", scores)), 0644)
 
 	c.JSON(http.StatusOK, gin.H{
 		"results": topK,
 	})
 }
-
 
 func GetArtById(c *gin.Context) {
 	artid, err := strconv.Atoi(c.Param("id"))
@@ -358,9 +357,9 @@ func GetArtById(c *gin.Context) {
 	if err != nil {
 		language_id = 2
 	}
-        
-        assets_path := "/assets/MET/"
-        art, err := model.GetArtById(artid, language_id)
+
+	assets_path := "/assets/MET/"
+	art, err := model.GetArtById(artid, language_id)
 
 	if err != nil {
 		log.Printf("err:%v", err)
@@ -372,11 +371,11 @@ func GetArtById(c *gin.Context) {
 
 	for i := 0; i < len(art.Images); i++ {
 		art.Images[i] = assets_path + "Images/" + art.Images[i] + ".jpg"
-	  }
-	  for i := 0; i < len(art.Audios); i++ {
+	}
+	for i := 0; i < len(art.Audios); i++ {
 		art.Audios[i] = assets_path + "Audio/" + art.Audios[i]
-	  }
-	  
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"results": art,
 	})

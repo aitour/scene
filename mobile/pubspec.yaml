@@ -36,6 +36,7 @@ dependencies:
   synchronized: ^1.5.3+2
   cached_network_image: ^0.5.1
   audioplayers: ^0.8.0
+  dio: 2.1.0
   
 
 dev_dependencies:

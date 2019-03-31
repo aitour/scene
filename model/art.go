@@ -2,14 +2,12 @@ package model
 
 import (
 	"database/sql"
-	"encoding/gob"
+	"encoding/binary"
+	//"encoding/gob"
 	"fmt"
 	"math"
-	"os"
-	"strconv"
-	"strings"
-
-	log "github.com/sirupsen/logrus"
+	//"os"
+	//log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -23,13 +21,13 @@ var (
 )
 
 type ArtReference struct {
-	ImageID       int
-	ArtID         int
-	ImageLocation string
-	ImageFeature  []float64 //already normalized feature
-	//ImageFeatureNorm     float64
-	MobileNetFeature []float64 //already normalized feature
-	//MobileNetFeatureNorm float64
+	ImageID              int
+	ArtID                int
+	ImageLocation        string
+	ImageFeature         []float64 //already normalized feature
+	ImageFeatureNorm     float64
+	MobileNetFeature     []float64 //already normalized feature
+	MobileNetFeatureNorm float64
 }
 
 func Norm(array []float64) float64 {
@@ -58,16 +56,16 @@ func GetArtReferences() ([]ArtReference, error) {
 
 func loadArtReferences() ([]ArtReference, error) {
 	var references []ArtReference
-	var gobFile = "./artref.gob"
-	if file, err := os.Open(gobFile); err == nil {
-		decoder := gob.NewDecoder(file)
-		decoder.Decode(&references)
-		file.Close()
-		log.Printf("load image references count: %v", len(references))
-		return references, nil
-	} else {
-		log.Printf("load image references from artref.gob error:%v", err)
-	}
+	// var gobFile = "./artref.gob"
+	// if file, err := os.Open(gobFile); err == nil {
+	// 	decoder := gob.NewDecoder(file)
+	// 	decoder.Decode(&references)
+	// 	file.Close()
+	// 	log.Printf("load image references count: %v", len(references))
+	// 	return references, nil
+	// } else {
+	// 	log.Printf("load image references from artref.gob error:%v", err)
+	// }
 
 	rows, err := db.Queryx(sqlGetArtReferences)
 	if err != nil {
@@ -75,46 +73,56 @@ func loadArtReferences() ([]ArtReference, error) {
 	}
 	for rows.Next() {
 		var ref ArtReference
-		var imageFeature, mobileNetFeature string
+		var imageFeature, mobileNetFeature []byte
 		if err := rows.Scan(&ref.ImageID, &ref.ArtID, &ref.ImageLocation, &imageFeature, &mobileNetFeature); err != nil {
 			return nil, err
 		}
+		//log.Printf("imageFeature len:%d, mobileNetFeature len:%d", len(imageFeature), len(mobileNetFeature))
 
-		if imageFeature[0] == '{' {
-			imageFeature = imageFeature[1 : len(imageFeature)-1]
+		for i := 0; i < len(imageFeature); i += 4 {
+			bits := binary.LittleEndian.Uint32(imageFeature[i : i+4])
+			ref.ImageFeature = append(ref.ImageFeature, float64(math.Float32frombits(bits)))
 		}
-		if mobileNetFeature[0] == '{' {
-			mobileNetFeature = mobileNetFeature[1 : len(mobileNetFeature)-1]
-		}
-		imageFeature = strings.Replace(imageFeature, "\n", "", -1)
-		imageFeature = strings.Replace(imageFeature, "\"", "", -1)
-		mobileNetFeature = strings.Replace(mobileNetFeature, "\n", "", -1)
-		mobileNetFeature = strings.Replace(mobileNetFeature, "\"", "", -1)
-		for _, f := range strings.Split(imageFeature, ",") {
-			if v, err := strconv.ParseFloat(f, 32); err != nil {
-				return nil, err
-			} else {
-				ref.ImageFeature = append(ref.ImageFeature, float64(v))
-			}
-		}
-		for _, f := range strings.Split(mobileNetFeature, ",") {
-			if v, err := strconv.ParseFloat(f, 32); err != nil {
-				return nil, err
-			} else {
-				ref.MobileNetFeature = append(ref.MobileNetFeature, float64(v))
-			}
 
+		for i := 0; i < len(mobileNetFeature); i += 4 {
+			bits := binary.LittleEndian.Uint32(mobileNetFeature[i : i+4])
+			ref.MobileNetFeature = append(ref.MobileNetFeature, float64(math.Float32frombits(bits)))
 		}
-		//ref.ImageFeatureNorm = Norm(ref.ImageFeature)
-		//ref.MobileNetFeatureNorm = Norm(ref.MobileNetFeature)
+
+		// if imageFeature[0] == '{' {
+		// 	imageFeature = imageFeature[1 : len(imageFeature)-1]
+		// }
+		// if mobileNetFeature[0] == '{' {
+		// 	mobileNetFeature = mobileNetFeature[1 : len(mobileNetFeature)-1]
+		// }
+		// imageFeature = strings.Replace(imageFeature, "\n", "", -1)
+		// imageFeature = strings.Replace(imageFeature, "\"", "", -1)
+		// mobileNetFeature = strings.Replace(mobileNetFeature, "\n", "", -1)
+		// mobileNetFeature = strings.Replace(mobileNetFeature, "\"", "", -1)
+		// for _, f := range strings.Split(imageFeature, ",") {
+		// 	if v, err := strconv.ParseFloat(f, 32); err != nil {
+		// 		return nil, err
+		// 	} else {
+		// 		ref.ImageFeature = append(ref.ImageFeature, float64(v))
+		// 	}
+		// }
+		// for _, f := range strings.Split(mobileNetFeature, ",") {
+		// 	if v, err := strconv.ParseFloat(f, 32); err != nil {
+		// 		return nil, err
+		// 	} else {
+		// 		ref.MobileNetFeature = append(ref.MobileNetFeature, float64(v))
+		// 	}
+		// }
+		ref.ImageFeatureNorm = Norm(ref.ImageFeature)
+		ref.MobileNetFeatureNorm = Norm(ref.MobileNetFeature)
 		references = append(references, ref)
 	}
 
-	if file, err := os.Create(gobFile); err == nil {
-		encoder := gob.NewEncoder(file)
-		encoder.Encode(references)
-		file.Close()
-	}
+	// if file, err := os.Create(gobFile); err == nil {
+	// 	encoder := gob.NewEncoder(file)
+	// 	encoder.Encode(references)
+	// 	file.Close()
+	// }
 	return references, nil
 }
 

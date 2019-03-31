@@ -11,7 +11,6 @@ import 'package:path_provider/path_provider.dart';
 import './home.dart';
 import './predict.dart';
 import './profile.dart';
-import './model.dart';
 import './global.dart' as globals;
 
 void main() {
@@ -24,60 +23,10 @@ void asyncInit() async {
   globals.gAppDocDir = (await getApplicationDocumentsDirectory()).path;
   await Directory('${globals.gAppDocDir}/models').create(recursive: true);
 
-  var connectivityResult = await (new Connectivity().checkConnectivity());
-  if (connectivityResult == ConnectivityResult.wifi) {
-    var downloadError = false;
-
-    var modelListFile = await globals.getModelListFile();
-    var models = await globals.getModelInfo(listFileBody: modelListFile);
-    if (models.length > 0) {
-      List<ModelInfo> mlist;
-      var f = File('${globals.gAppDocDir}/models/mlist.json');
-      if (await f.exists()) {
-          var models = json.decode(await f.readAsString())['models'] as List;
-          if (models != null) {
-            mlist = models.map((m) => ModelInfo.fromJson(m)).toList();
-            //删除不同步的文件
-            for (var mi in mlist) {
-              var i = globals.gModelInfos.indexWhere((v) => v.name == mi.name);
-              if (i < 0) {
-                await File('${globals.gAppDocDir}/models/${mi.name}').delete();
-              }
-            }
-          }
-      }
-
-      //如果有必要， 下载模型
-      for (var mi in globals.gModelInfos) {
-        if (mlist != null &&
-            mlist.indexWhere((v) => v.md5Hash == mi.md5Hash) >= 0) {
-          continue;
-        } else {
-          var modelPath = '${globals.gAppDocDir}/models/${mi.name}';
-          var f = File(modelPath);
-          if (f.existsSync()) {
-            var digest = md5.convert(f.readAsBytesSync());
-            if ('$digest' == mi.md5Hash) {
-              continue;
-            }
-          }
-
-          //download the file
-          f = await mi.localFile;
-          if (!f.existsSync()) {
-            downloadError = true;
-          }
-        }
-      }
-    }
-
-    if (!downloadError) {
-      var fw = File('${globals.gAppDocDir}/models/mlist.json')
-          .openSync(mode: FileMode.write);
-      fw.writeStringSync(modelListFile);
-      fw.closeSync();
-    }
-  }
+  // var connectivityResult = await (new Connectivity().checkConnectivity());
+  // if (connectivityResult == ConnectivityResult.wifi) {
+  //   await globals.modelManager.getTfLiteModel();
+  // }
 }
 
 class AitourApp extends StatefulWidget {
@@ -100,12 +49,9 @@ class _AitourAppState extends State<AitourApp> {
   @override
   void initState() {
     super.initState();
-
     _connectivitySubscription =
-        _connectivity.onConnectivityChanged.listen((ConnectivityResult result) {
+        _connectivity.onConnectivityChanged.listen((ConnectivityResult result) async {
       globals.gConnectivityResult = result;
-      if (!globals.gIsModelChecked && result == ConnectivityResult.wifi) {}
-      //setState(() => _connectionStatus = result.toString());
     });
   }
 

@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import './artlist.dart';
 import './model.dart';
 import './global.dart' as globals;
+import 'progressdlg.dart';
 
 class ArtPredictPage extends StatefulWidget {
   @override
@@ -37,61 +38,79 @@ void logError(String code, String message) =>
 class _ArtPredictPageState extends State<ArtPredictPage> {
   bool camerasInitialized = false;
   String tfmodelLoadError;
-  bool tfliteModelLoaded = false;
   bool isPredicting = false;
   CameraController controller;
   List<CameraDescription> cameras;
   MethodChannel tflite;
 
   String imagePath;
+  File modelFile;
+  double modelLoadPercent = 0.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  void asyncInit() async {
-    var models = await globals.getModelInfo();
-    //load tflite model if nessary
-    if (models.length > 0) {
-      //wait for the model to be downloaded
-      await models[0].localFile;
-      tflite = const MethodChannel('net.pangolinai.mobile/museum_tflite');
-      try {
-        final String result = await tflite.invokeMethod('loadModel',
-            {'model': '${globals.gAppDocDir}/models/${models[0].name}'});
-        if (result == "success") {
-          tfliteModelLoaded = true;
-        }
-      } on PlatformException catch (e) {
-        tfmodelLoadError = e.message;
-        print('load tflite model error:${e.message}');
-      }
+  void modelDownloadListener(String name, int received, int total) {
+    print(name + ":\t" + (received / total * 100).toStringAsFixed(0) + "%");
+    if (received == total) {
+      setState(() {
+        modelFile = File(name);
+        modelLoadPercent = 1.0;
+      });
+    } else {
+      setState(() {
+        modelLoadPercent = received / total;
+      });
     }
+  }
 
-    cameras = await availableCameras();
-    for (var cam in cameras) {
-      if (cam.lensDirection == CameraLensDirection.back) {
-        if (controller != null) {
-          await controller.dispose();
-        }
-        controller = CameraController(cam, ResolutionPreset.high);
-
-        // If the controller is updated then update the UI.
-        controller.addListener(() {
-          if (mounted) setState(() {});
-          if (controller.value.hasError) {
-            showInSnackBar('Camera error ${controller.value.errorDescription}');
-          }
-        });
-
+  void asyncInit() async {
+    globals.modelManager.addDownloadWatcher(modelDownloadListener);
+    var model = await globals.modelManager.getTfLiteModel();
+    if (model != null) {
+      var f = await model.localFile;
+      if (f.existsSync()) {
+        tflite = const MethodChannel('net.pangolinai.mobile/museum_tflite');
         try {
-          await controller.initialize();
-        } on CameraException catch (e) {
-          _showCameraException(e);
+          final String result =
+              await tflite.invokeMethod('loadModel', {'model': '${f.path}'});
+          if (result == "success") {
+            print("model load successfully");
+          }
+        } on PlatformException catch (e) {
+          tfmodelLoadError = e.message;
+          print('load tflite model error:${e.message}');
         }
+        modelLoadPercent = 1.0;
+      }
 
-        if (mounted) {
-          setState(() {
-            camerasInitialized = true;
+      cameras = await availableCameras();
+      for (var cam in cameras) {
+        if (cam.lensDirection == CameraLensDirection.back) {
+          if (controller != null) {
+            await controller.dispose();
+          }
+          controller = CameraController(cam, ResolutionPreset.high);
+
+          // If the controller is updated then update the UI.
+          controller.addListener(() {
+            if (mounted) setState(() {});
+            if (controller.value.hasError) {
+              showInSnackBar(
+                  'Camera error ${controller.value.errorDescription}');
+            }
           });
+
+          try {
+            await controller.initialize();
+          } on CameraException catch (e) {
+            _showCameraException(e);
+          }
+
+          if (mounted) {
+            setState(() {
+              camerasInitialized = true;
+            });
+          }
         }
       }
     }
@@ -117,10 +136,11 @@ class _ArtPredictPageState extends State<ArtPredictPage> {
               child: Padding(
                 padding: const EdgeInsets.all(1.0),
                 child: Center(
-                  child: camerasInitialized
-                      ? _cameraPreviewWidget()
-                      : CircularProgressIndicator(
-                          semanticsLabel: "waiting for camera..."),
+                  child: ProgressDialog(
+                    value: modelLoadPercent,
+                    msg :  "loading.... ${(modelLoadPercent * 100).toStringAsFixed(0)}%",
+                    child:_cameraPreviewWidget(),
+                  )
                 ),
               ),
             ),
@@ -150,12 +170,13 @@ class _ArtPredictPageState extends State<ArtPredictPage> {
     }
   }
 
+
   void onCameraPreviewPressed() {
     if (tfmodelLoadError != null && tfmodelLoadError.length > 0) {
       showInSnackBar('Error: load model failed ($tfmodelLoadError)');
     }
 
-    if (!tfliteModelLoaded) {
+    if (modelLoadPercent != 1.0) {
       showInSnackBar('please wait, modal loading...');
       return;
     }
@@ -164,6 +185,8 @@ class _ArtPredictPageState extends State<ArtPredictPage> {
       showInSnackBar('Please wait...');
       return;
     }
+
+    //testImage();
 
     takePicture().then((String filePath) async {
       if (mounted) {
@@ -219,7 +242,7 @@ class _ArtPredictPageState extends State<ArtPredictPage> {
     if (controller != null) {
       await controller.dispose();
     }
-    controller = CameraController(cameraDescription, ResolutionPreset.high);
+    controller = CameraController(cameraDescription, ResolutionPreset.low);
 
     // If the controller is updated then update the UI.
     controller.addListener(() {

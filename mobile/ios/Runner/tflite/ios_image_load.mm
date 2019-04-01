@@ -177,8 +177,8 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
     
     const int channels = 4;
     CGColorSpaceRef color_space = CGColorSpaceCreateDeviceRGB();
-    const int bytes_per_row = (width * channels);
-    const int bytes_in_image = (bytes_per_row * height);
+    const int bytes_per_row = (new_width * channels);
+    const int bytes_in_image = (bytes_per_row * new_height);
     std::vector<uint8_t> scaled_image(bytes_in_image);
     const int bits_per_component = 8;
     
@@ -201,12 +201,12 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
         if (new_width > new_height) {
             offset_x = corps <= 1 ? 0 : i * (new_width- new_height) / (corps - 1);
         } else {
-            offset_y = corps <= 1 ? 0 : i * (new_height - new_width) / (corps-1);
+            offset_y = corps <= 1 ? 0 : i * (new_height - new_width) / (corps - 1);
         }
         
         for (int y = 0; y < scale_side_len; y++) {
             for (int x = 0; x < scale_side_len; x++) {
-                int offset = (y+offset_y) * new_width * channels + (x+offset_x) * channels;
+                int offset = (y + offset_y) * new_width * channels + (x + offset_x) * channels;
                 corp_img.push_back(scaled_image[offset]); //R
                 corp_img.push_back(scaled_image[offset+1]); //G
                 corp_img.push_back(scaled_image[offset+2]); //B

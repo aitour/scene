@@ -72,68 +72,6 @@ std::vector<uint8_t> LoadImageFromFile(const char* file_name,
   return result;
 }
 
-CGImageRef CreateScaledCGImageFromCGImage(CGImageRef image, float scale)
-{
-    // Create the bitmap context
-    CGContextRef    context = NULL;
-    void *          bitmapData;
-    int             bitmapByteCount;
-    int             bitmapBytesPerRow;
-    
-    // Get image width, height. We'll use the entire image.
-    int width = CGImageGetWidth(image) * scale;
-    int height = CGImageGetHeight(image) * scale;
-    
-    // Declare the number of bytes per row. Each pixel in the bitmap in this
-    // example is represented by 4 bytes; 8 bits each of red, green, blue, and
-    // alpha.
-    bitmapBytesPerRow   = (width * 4);
-    bitmapByteCount     = (bitmapBytesPerRow * height);
-    
-    // Allocate memory for image data. This is the destination in memory
-    // where any drawing to the bitmap context will be rendered.
-    bitmapData = malloc( bitmapByteCount );
-    if (bitmapData == NULL)
-    {
-        return nil;
-    }
-    
-    // Create the bitmap context. We want pre-multiplied ARGB, 8-bits
-    // per component. Regardless of what the source image format is
-    // (CMYK, Grayscale, and so on) it will be converted over to the format
-    // specified here by CGBitmapContextCreate.
-    CGColorSpaceRef colorspace = CGImageGetColorSpace(image);
-    context = CGBitmapContextCreate (bitmapData,width,height,8,bitmapBytesPerRow,
-                                     colorspace,kCGImageAlphaNoneSkipFirst);
-    CGColorSpaceRelease(colorspace);
-    
-    if (context == NULL)
-        // error creating context
-        return nil;
-    
-    
-//    if (image- == kCGImagePropertyOrientationRight) {
-//        //rotate 90degree
-//        CGContextRotateCTM (context, 90/180*M_PI) ;
-//    } else if (image->CGImagePropertyOrientation == kCGImagePropertyOrientationDown) {
-//        //rotate 180degree
-//        CGContextRotateCTM (context, 180/180*M_PI) ;
-//    } else if (image->CGImagePropertyOrientation == kCGImagePropertyOrientationLeft) {
-//        //rotate 270degree
-//        CGContextRotateCTM (context, 270/180*M_PI) ;
-//    }
-    
-    // Draw the image to the bitmap context. Once we draw, the memory
-    // allocated for the context for rendering will then contain the
-    // raw image data in the specified color space.
-    CGContextDrawImage(context, CGRectMake(0,0,width, height), image);
-    
-    CGImageRef imgRef = CGBitmapContextCreateImage(context);
-    CGContextRelease(context);
-    free(bitmapData);
-    
-    return imgRef;
-}
 
 std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int scale_side_len, int corps) {
     FILE* file_handle = fopen(file_name, "rb");
@@ -185,14 +123,14 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
     
     CGContextRef context = CGBitmapContextCreate(scaled_image.data(), new_width, new_height,
                                                  bits_per_component, new_width * 4, color_space,
-                                                 kCGImageAlphaPremultipliedFirst /*| kCGBitmapByteOrder32Big*/);
-    
+                                                 kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGContextDrawImage(context, CGRectMake(0,0,new_width, new_height), image);
     CGImageRef imgRef = CGBitmapContextCreateImage(context);
     char saveFile[256];
     int n = sprintf(saveFile, "%s", file_name);
     strcpy(saveFile+n, ".scale");
+    UIImage *img = [UIImage imageWithCGImage:imgRef];
     [UIImagePNGRepresentation([UIImage imageWithCGImage:imgRef]) writeToFile:[NSString stringWithUTF8String:saveFile] atomically:YES];
-
     
     CGContextRelease(context);
     CFRelease(image);

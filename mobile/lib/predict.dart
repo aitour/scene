@@ -230,7 +230,7 @@ class _ArtPredictPageState extends State<ArtPredictPage> {
 
         FormData formData = new FormData.from({
           "auth": "135246",
-          "file": new UploadFileInfo(f1, "upload.jpg")
+          "file": new UploadFileInfo(f2, "upload.jpg")
         });
         var resp = await globals.dio.post("${globals.host}/upload2", data: formData);
         print("$resp");

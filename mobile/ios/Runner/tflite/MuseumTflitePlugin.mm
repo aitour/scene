@@ -217,6 +217,9 @@ NSData * runModelOnImage(NSDictionary* args) {
     const float input_mean = [args[@"imageMean"] floatValue];
     const float input_std = [args[@"imageStd"] floatValue];
     
+    
+    const int CLASS_NUMS = 1280;
+    
     //NSMutableArray* empty = [@[] mutableCopy];
     
     if (!interpreter) {
@@ -235,16 +238,16 @@ NSData * runModelOnImage(NSDictionary* args) {
         return nullptr;
     }
     
-    std::vector<std::vector<uint8_t>> image_data = LoadImageFromFile2([image_path UTF8String], wanted_width, 3);
+    std::vector<std::vector<uint8_t>> image_data = LoadImageFromFile2([image_path UTF8String], wanted_width, wanted_channels);
     float weights[3] = {0.3, 0.4, 0.3};
     
-    const int feature_len = wanted_width * wanted_width * 3;
-    float composed_feature[1280];
-    memset(composed_feature, 0, 1280*4);
+    const int feature_len = wanted_width * wanted_width * wanted_channels;
+    float composed_feature[CLASS_NUMS];
+    memset(composed_feature, 0, CLASS_NUMS*sizeof(float));
     float *input_tensor = interpreter->typed_tensor<float>(input);
     for (int i = 0; i < 3; i++) {
         //fill the input tensor
-        for (int k = 0; k < 224*224; k+=3) {
+        for (int k = 0; k < wanted_width*wanted_width; k+=3) {
             input_tensor[k] = image_data[i][k]; //R
             input_tensor[k+1] = image_data[i][k+1]; //G
             input_tensor[k+2] = image_data[i][k+2]; //B
@@ -256,11 +259,11 @@ NSData * runModelOnImage(NSDictionary* args) {
         }
         
         float* output = interpreter->typed_output_tensor<float>(0);
-        for (int j = 0; j < 1280; j++) {
+        for (int j = 0; j < CLASS_NUMS; j++) {
             composed_feature[j] += output[j] * weights[i];
         }
     }
-    return [NSData dataWithBytes:composed_feature length:1280 * 4];
+    return [NSData dataWithBytes:composed_feature length:CLASS_NUMS * sizeof(float)];
     
     //  if (output == NULL)
     //    return nullptr;

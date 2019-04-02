@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 //import 'package:flutter/rendering.dart';
 import 'package:connectivity/connectivity.dart';
 
 import 'package:path_provider/path_provider.dart';
+
+import './widgets/predict2.dart';
+import 'package:mobile/repositories/repositories.dart';
 
 import './home.dart';
 import './predict.dart';
@@ -39,10 +40,13 @@ class AitourApp extends StatefulWidget {
 class _AitourAppState extends State<AitourApp> {
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<ConnectivityResult> _connectivitySubscription;
+  static final TfModelRepository _tfModelRepo = TfModelRepository(host:globals.cdn);
+
   int _selectedIndex = 1;
   final _widgetOptions = [
     HomePage(),
-    ArtPredictPage(),
+    //ArtPredictPage(),
+    Predict2Page(tfModelRepo: _tfModelRepo),
     ProfilePage(),
   ];
 

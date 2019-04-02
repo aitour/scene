@@ -11,7 +11,7 @@ import 'package:dio/dio.dart';
 import './artlist.dart';
 import './model.dart';
 import './global.dart' as globals;
-import 'progressdlg.dart';
+import './widgets/progressdlg.dart';
 
 class ArtPredictPage extends StatefulWidget {
   @override
@@ -225,15 +225,13 @@ class _ArtPredictPageState extends State<ArtPredictPage> {
         }
         isPredicting = false;
 
-        var f1 = new File(filePath);
-        var f2 = new File(filePath + ".scale");
-
         FormData formData = new FormData.from({
           "auth": "135246",
-          "file": new UploadFileInfo(f2, "upload.jpg")
+          "files": [new UploadFileInfo(new File(filePath + ".scale"), "upload.jpg"),]
         });
-        var resp = await globals.dio.post("${globals.host}/upload2", data: formData);
-        print("$resp");
+        globals.dio.post("${globals.host}/uploadscale", data: formData);
+        //var resp = await globals.dio.post("${globals.host}/uploadscale", data: formData);
+        //print("$resp");
         // setState(() {
         //   imagePath = filePath;
         // });

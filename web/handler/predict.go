@@ -314,6 +314,12 @@ func Predict2(c *gin.Context) {
 			k = v
 		}
 	}
+	threshold := 0.1
+	if arg := c.Query("t"); len(arg) > 0 {
+		if v, err := strconv.ParseFloat(arg, 64); err == nil {
+			threshold = v
+		}
+	}
 	topK := make([]ArtScore, k)
 	featureNorm := model.Norm(feature)
 	//var scores []float64
@@ -339,6 +345,17 @@ func Predict2(c *gin.Context) {
 	//    return scores[i] > scores[j]
 	//})
 	//ioutil.WriteFile("/usr/local/aitour/aiweb/scores.txt", []byte(fmt.Sprintf("%v", scores)), 0644)
+
+	//apply threshold filter
+	j := 0
+	for i := 0; i < len(topK); i++ {
+		if topK[i].Score >= threshold {
+			j++;
+		} else {
+			break;
+		}
+	}
+	topK = topK[:j]
 
 	c.JSON(http.StatusOK, gin.H{
 		"results": topK,

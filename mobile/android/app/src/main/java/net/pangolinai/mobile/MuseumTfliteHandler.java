@@ -31,6 +31,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
@@ -229,6 +230,14 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
 //                scaledBmp,
 //                "image_file",
 //                "file");
+
+        //write a scaled image to disk
+        File file = new File(path + ".scale");
+        OutputStream fOutputStream = new FileOutputStream(file);
+        scaledBmp.compress(Bitmap.CompressFormat.JPEG, 100, fOutputStream);
+        fOutputStream.flush();
+        fOutputStream.close();
+        
 
         Bitmap[] testBmp = { scaledBmp };
         List<ByteBuffer> buffers = new ArrayList<ByteBuffer>();

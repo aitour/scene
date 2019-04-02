@@ -6,8 +6,8 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"fmt"
 	"os/signal"
-	"io"
 	"syscall"
 	"time"
 	"path"
@@ -31,7 +31,7 @@ var (
 	cfg  *config.Config
 )
 
-func createHttpServer() (*http.Server, error) {
+func createHTTPServer() (*http.Server, error) {
 	log.SetOutput(gin.DefaultWriter)
 
 	r := gin.Default()
@@ -114,32 +114,21 @@ func createHttpServer() (*http.Server, error) {
 
 	r.POST("/uploadimg", handler.UploadAnonomousePhoto)
 	r.POST("/setimgclass", handler.SetAnonomouseUploadedPhotoClass)
-	r.POST("/upload2", func(c *gin.Context) {
-		log.Printf("upload file2")
+	r.POST("/uploadscale", func(c *gin.Context) {
 		if c.PostForm("auth") != "135246" {
 			c.JSON(http.StatusBadRequest, nil)
 			return
 		}
-		file, _ := c.FormFile("file")
-		src, err := file.Open()
-		if err != nil {
-			log.Printf("open file error:%v", err)
-			c.JSON(http.StatusInternalServerError, nil)
-			return
+		form, _ := c.MultipartForm()
+		files := form.File["files"]
+		if len(files) == 0 {
+			files = form.File["files[]"]
 		}
-		defer src.Close()
-		dst := path.Join(config.GetConfig().Http.UploadDir, file.Filename)
-		out, err := os.Create(dst)
-		if err != nil {
-			log.Printf("create file %s error:%v", dst, err)
-			c.JSON(http.StatusInternalServerError, nil)
-			return
-		}
-		defer out.Close()
-
-		if s := src.(io.ReadSeeker); s != nil {
-			s.Seek(0, 0)
-			io.Copy(out, src)
+		//log.Printf("form:%+v, files:%d", form, len(files))
+		for _, file := range files {
+			dst := path.Join(config.GetConfig().Http.UploadDir, fmt.Sprintf("%d%s", time.Now().UnixNano(), path.Ext(file.Filename)));
+			//log.Printf("upload file:%v -> %v", file.Filename, dst)
+			c.SaveUploadedFile(file, dst)
 		}
 		c.JSON(http.StatusOK, nil)
 	})
@@ -175,7 +164,7 @@ func main() {
 	cfg = config.GetConfig()
 
 	//create http server
-	srv, err := createHttpServer()
+	srv, err := createHTTPServer()
 	if err != nil {
 		log.Fatal(err)
 	}

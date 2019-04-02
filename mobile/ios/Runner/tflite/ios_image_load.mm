@@ -7,6 +7,7 @@
 
 #import <CoreImage/CoreImage.h>
 #import <ImageIO/ImageIO.h>
+#import <UIKit/UIKit.h>
 
 std::vector<uint8_t> LoadImageFromFile(const char* file_name,
                                      int* out_width, int* out_height,
@@ -167,7 +168,7 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
         return std::vector<std::vector<uint8_t>>();
     }
     
-   
+    
     
     int width = (int)CGImageGetWidth(image);
     int height = (int)CGImageGetHeight(image);
@@ -184,10 +185,15 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
     
     CGContextRef context = CGBitmapContextCreate(scaled_image.data(), new_width, new_height,
                                                  bits_per_component, new_width * 4, color_space,
-                                                 kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+                                                 kCGImageAlphaPremultipliedFirst /*| kCGBitmapByteOrder32Big*/);
     
-    CGColorSpaceRelease(color_space);
-    CGContextDrawImage(context, CGRectMake(0, 0, new_width, new_height), image);
+    CGImageRef imgRef = CGBitmapContextCreateImage(context);
+    char saveFile[256];
+    int n = sprintf(saveFile, "%s", file_name);
+    strcpy(saveFile+n, ".scale");
+    [UIImagePNGRepresentation([UIImage imageWithCGImage:imgRef]) writeToFile:[NSString stringWithUTF8String:saveFile] atomically:YES];
+
+    
     CGContextRelease(context);
     CFRelease(image);
     CFRelease(image_provider);

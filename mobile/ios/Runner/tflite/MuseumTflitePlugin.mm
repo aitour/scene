@@ -239,8 +239,8 @@ NSData * runModelOnImage(NSDictionary* args) {
     float weights[3] = {0.3, 0.4, 0.3};
     
     const int feature_len = wanted_width * wanted_width * 3;
-    float composed_feature[feature_len];
-    memset(composed_feature, 0, feature_len);
+    float composed_feature[1280];
+    memset(composed_feature, 0, 1280*4);
     float *input_tensor = interpreter->typed_tensor<float>(input);
     for (int i = 0; i < 3; i++) {
         //fill the input tensor
@@ -256,7 +256,7 @@ NSData * runModelOnImage(NSDictionary* args) {
         }
         
         float* output = interpreter->typed_output_tensor<float>(0);
-        for (int j = 0; j < feature_len; j++) {
+        for (int j = 0; j < 1280; j++) {
             composed_feature[j] += output[j] * weights[i];
         }
     }

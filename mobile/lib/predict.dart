@@ -6,6 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 
 import './artlist.dart';
 import './model.dart';
@@ -224,6 +225,15 @@ class _ArtPredictPageState extends State<ArtPredictPage> {
         }
         isPredicting = false;
 
+        var f1 = new File(filePath);
+        var f2 = new File(filePath + ".scale");
+
+        FormData formData = new FormData.from({
+          "auth": "135246",
+          "file": new UploadFileInfo(f1, "upload.jpg")
+        });
+        var resp = await globals.dio.post("${globals.host}/upload2", data: formData);
+        print("$resp");
         // setState(() {
         //   imagePath = filePath;
         // });

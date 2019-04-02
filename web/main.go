@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"io"
 	"syscall"
 	"time"
+	"path"
 
 	//for image decode
 	_ "image/jpeg"
@@ -112,6 +114,35 @@ func createHttpServer() (*http.Server, error) {
 
 	r.POST("/uploadimg", handler.UploadAnonomousePhoto)
 	r.POST("/setimgclass", handler.SetAnonomouseUploadedPhotoClass)
+	r.POST("/upload2", func(c *gin.Context) {
+		log.Printf("upload file2")
+		if c.PostForm("auth") != "135246" {
+			c.JSON(http.StatusBadRequest, nil)
+			return
+		}
+		file, _ := c.FormFile("file")
+		src, err := file.Open()
+		if err != nil {
+			log.Printf("open file error:%v", err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+		defer src.Close()
+		dst := path.Join(config.GetConfig().Http.UploadDir, file.Filename)
+		out, err := os.Create(dst)
+		if err != nil {
+			log.Printf("create file %s error:%v", dst, err)
+			c.JSON(http.StatusInternalServerError, nil)
+			return
+		}
+		defer out.Close()
+
+		if s := src.(io.ReadSeeker); s != nil {
+			s.Seek(0, 0)
+			io.Copy(out, src)
+		}
+		c.JSON(http.StatusOK, nil)
+	})
 
 	r.POST("/predict", handler.Predict)
 	r.POST("/predict2", handler.Predict2)

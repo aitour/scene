@@ -26,7 +26,7 @@ class _ArtListViewState extends State<ArtListView> {
 
   void asyncInit() async {
     for (var item in this.widget.predicts) {
-      http.get('${globals.host}/art/${item.id}').then((response) {
+      http.get('${globals.cdn}/art/${item.id}').then((response) {
         if (response.statusCode == 200) {
           var obj = json.decode(response.body);
           if (obj["error"] == null) {
@@ -90,8 +90,8 @@ class _ArtInfoCardState extends State<ArtInfoCard> {
       widgets.add(CachedNetworkImage(
         //imageUrl: "http://via.placeholder.com/350x150",
         imageUrl: art.images[0].startsWith("/")
-            ? "${globals.host}${art.images[0]}"
-            : "${globals.host}/${art.images[0]}",
+            ? "${globals.cdn}${art.images[0]}"
+            : "${globals.cdn}/${art.images[0]}",
         placeholder: new CircularProgressIndicator(),
         errorWidget: new Icon(Icons.broken_image),
       ));
@@ -100,8 +100,8 @@ class _ArtInfoCardState extends State<ArtInfoCard> {
     art.audios.forEach((url) {
       widgets.add(AudioPlayerWidget(
           url: url.startsWith("/")
-              ? "${globals.host}$url"
-              : "${globals.host}/$url"));
+              ? "${globals.cdn}$url"
+              : "${globals.cdn}/$url"));
     });
 
     widgets.add(Padding(

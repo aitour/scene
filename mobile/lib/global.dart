@@ -17,6 +17,7 @@ var modelManager = new TfLiteModelManager();
 Locale gMyLocale = null;
 //const host = 'http://192.168.0.220:8081';
 const host = 'http://pangolinai.net';
+const cdn = 'http://cdn.pangolinai.net';
 //const host = 'http://192.168.1.8:8081';
 
 

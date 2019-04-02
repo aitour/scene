@@ -57,7 +57,7 @@ class TfLiteModelManager {
   Future<void> _startSync() async {
     var appDoc = (await getApplicationDocumentsDirectory()).path;
 
-    var response = await dio.get("$host/model/list");
+    var response = await dio.get("$cdn/model/list");
     if (response.statusCode != 200) {
       print("error download model list");
       return;
@@ -111,8 +111,8 @@ class TfLiteModelManager {
       //download the file
       if (startRange != mi.size) {
         var url = mi.downloadPath.startsWith("/")
-            ? '$host${mi.downloadPath}'
-            : '$host/${mi.downloadPath}';
+            ? '$cdn${mi.downloadPath}'
+            : '$cdn/${mi.downloadPath}';
 
         try {
           await dio.download(

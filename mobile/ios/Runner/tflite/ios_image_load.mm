@@ -122,8 +122,9 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
     const int bits_per_component = 8;
     
     CGContextRef context = CGBitmapContextCreate(scaled_image.data(), new_width, new_height,
-                                                 bits_per_component, new_width * 4, color_space,
+                                                 bits_per_component, bytes_per_row, color_space,
                                                  kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(color_space);
     CGContextDrawImage(context, CGRectMake(0,0,new_width, new_height), image);
     CGImageRef imgRef = CGBitmapContextCreateImage(context);
     char saveFile[256];
@@ -140,6 +141,7 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
     
     std::vector<std::vector<uint8_t>> result;
     
+    uint8_t *in = scaled_image.data();
     for (int i = 0; i < corps; i++) {
         std::vector<uint8_t> corp_img;
         int offset_x = 0, offset_y = 0;
@@ -150,11 +152,12 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
         }
         
         for (int y = 0; y < scale_side_len; y++) {
+            uint8_t *row = in + (y + offset_y) * new_width * channels;
             for (int x = 0; x < scale_side_len; x++) {
-                int offset = (y + offset_y) * new_width * channels + (x + offset_x) * channels;
-                corp_img.push_back(scaled_image[offset]); //R
-                corp_img.push_back(scaled_image[offset+1]); //G
-                corp_img.push_back(scaled_image[offset+2]); //B
+                uint8_t *pixel = row + (x + offset_x) * channels;
+                corp_img.push_back(*pixel); //R
+                corp_img.push_back(*(pixel+1)); //G
+                corp_img.push_back(*(pixel+2)); //B
             }
         }
         result.push_back(corp_img);

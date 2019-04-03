@@ -45,8 +45,8 @@ class _AitourAppState extends State<AitourApp> {
   int _selectedIndex = 1;
   final _widgetOptions = [
     HomePage(),
-    //ArtPredictPage(),
-    Predict2Page(tfModelRepo: _tfModelRepo),
+    ArtPredictPage(),
+    //Predict2Page(tfModelRepo: _tfModelRepo),
     ProfilePage(),
   ];
 

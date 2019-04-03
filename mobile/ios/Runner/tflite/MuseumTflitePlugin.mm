@@ -160,6 +160,8 @@ NSData * runModelOnImage_(NSDictionary* args) {
   if (num_threads != -1) {
     interpreter->SetNumThreads(num_threads);
   }
+    
+    
 
   int input = interpreter->inputs()[0];
 
@@ -231,12 +233,12 @@ NSData * runModelOnImage(NSDictionary* args) {
         interpreter->SetNumThreads(num_threads);
     }
     
-    int input = interpreter->inputs()[0];
-    
-    if (interpreter->AllocateTensors() != kTfLiteOk) {
-        NSLog(@"Failed to allocate tensors.");
-        return nullptr;
-    }
+//    int input = interpreter->inputs()[0];
+//
+//    if (interpreter->AllocateTensors() != kTfLiteOk) {
+//        NSLog(@"Failed to allocate tensors.");
+//        return nullptr;
+//    }
     
     std::vector<std::vector<uint8_t>> image_data = LoadImageFromFile2([image_path UTF8String], wanted_width, wanted_channels);
     float weights[3] = {0.3, 0.4, 0.3};
@@ -244,8 +246,18 @@ NSData * runModelOnImage(NSDictionary* args) {
     const int feature_len = wanted_width * wanted_width * wanted_channels;
     float composed_feature[CLASS_NUMS];
     memset(composed_feature, 0, CLASS_NUMS*sizeof(float));
-    float *input_tensor = interpreter->typed_tensor<float>(input);
+    
+    
     for (int i = 0; i < 3; i++) {
+        const std::vector<int> inputs = interpreter->inputs();
+        
+        int input = interpreter->inputs()[0];
+        if (interpreter->AllocateTensors() != kTfLiteOk) {
+            NSLog(@"Failed to allocate tensors.");
+            return nullptr;
+        }
+        float *input_tensor = interpreter->typed_tensor<float>(input);
+        
         //fill the input tensor
         for (int k = 0; k < wanted_width*wanted_width; k+=3) {
             input_tensor[k] = image_data[i][k]; //R

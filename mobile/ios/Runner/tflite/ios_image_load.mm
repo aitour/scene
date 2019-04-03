@@ -129,13 +129,14 @@ std::vector<std::vector<uint8_t>> LoadImageFromFile2(const char* file_name, int 
     char saveFile[256];
     int n = sprintf(saveFile, "%s", file_name);
     strcpy(saveFile+n, ".scale");
-    UIImage *img = [UIImage imageWithCGImage:imgRef];
+    //UIImage *img = [UIImage imageWithCGImage:imgRef];
     [UIImagePNGRepresentation([UIImage imageWithCGImage:imgRef]) writeToFile:[NSString stringWithUTF8String:saveFile] atomically:YES];
     
     CGContextRelease(context);
     CFRelease(image);
     CFRelease(image_provider);
     CFRelease(file_data_ref);
+    CFRelease(imgRef);
     
     std::vector<std::vector<uint8_t>> result;
     

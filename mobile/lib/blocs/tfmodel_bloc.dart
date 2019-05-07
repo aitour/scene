@@ -5,8 +5,10 @@ import 'package:crypto/crypto.dart'; //for md5
 import 'package:meta/meta.dart';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
+import 'package:exif/exif.dart';
 
 import 'package:mobile/repositories/repositories.dart';
 import 'package:mobile/models/models.dart';
@@ -20,95 +22,104 @@ abstract class TfModelEvent extends Equatable {
 
 class TfModelCheckModelUpdateEvent extends TfModelEvent {}
 
-// class TfModelDownloadEvent extends TfModelEvent {
-//   final String url;
-//   TfModelDownloadEvent({@required this.url})
-//       : assert(url != null),
-//         super([url]);
-// }
-
 class TfModelDownloadProgressEvent extends TfModelEvent {
   final TfModelInfo model;
   int received;
   int total;
 
   TfModelDownloadProgressEvent(
-      {@required this.model,
-      @required this.received,
-      @required this.total})
+      {@required this.model, @required this.received, @required this.total})
       : super([model, received, total]);
 }
 
-//state
-abstract class TfModelState extends Equatable {
-  TfModelState([List props = const []]) : super(props);
+class TfDoPredictionEvent extends TfModelEvent {
+  final String imagePath;
+  TfDoPredictionEvent({@required this.imagePath}) : super([imagePath]);
 }
 
-class TfModelEmpty extends TfModelState {}
+//state
+abstract class TfState extends Equatable {
+  TfState([List props = const []]) : super(props);
+}
 
-class TfModelDownloading extends TfModelState {
+class TfModelEmpty extends TfState {}
+
+class TfModelDownloading extends TfState {
   final TfModelInfo model;
   int received;
   int total;
 
   TfModelDownloading(
-      {@required this.model,
-      @required this.received,
-      @required this.total})
+      {@required this.model, @required this.received, @required this.total})
       : assert(model != null && total > 0),
         super([model, received, total]);
 }
 
-class TfModelDownloadError extends TfModelState {
+class TfModelDownloadError extends TfState {
   final String error;
   TfModelDownloadError({this.error});
 }
 
-class TfModelChecking extends TfModelState {}
+class TfModelChecking extends TfState {}
 
-class TfModelLoaded extends TfModelState {
+class TfModelLoaded extends TfState {
   TfModelInfo model;
   TfModelLoaded({@required this.model})
       : assert(model != null),
         super([model]);
 }
 
+class TfPredictionStart extends TfState {}
+
+class TfPredictionResults extends TfState {
+  final List<ArtPredict> results;
+  TfPredictionResults({@required this.results}) : super([results]);
+}
+
+class TfPredictionError extends TfState {
+  final String error;
+  TfPredictionError({this.error}) : super([error]);
+}
+
+class TfPredictionShowingResults extends TfState {}
+
 //bloc
-class TfModelBloc extends Bloc<TfModelEvent, TfModelState> {
+class TfModelBloc extends Bloc<TfModelEvent, TfState> {
   final TfModelRepository repo;
+  StreamSubscription subscription;
+  List<TfModelInfo> models;
 
   TfModelBloc({@required this.repo}) : assert(repo != null);
 
-  Future<int> _mergeFile(
-      String mergeTo, String mergeFrom, bool deleteFromAfterMerge) async {
-    var f = File(mergeFrom);
-    var t = File(mergeTo);
-    int mergeLen = 0;
-    if (f.existsSync()) {
-      mergeLen = await f.length();
-      IOSink ioSink = t.openWrite(mode: FileMode.writeOnlyAppend);
-      await ioSink.addStream(f.openRead());
-      await ioSink.flush();
-      await ioSink.close();
-      if (deleteFromAfterMerge) {
-        await f.delete();
-      }
-    }
-    return mergeLen;
-  }
+  @override
+  TfState get initialState => global.tflite == null
+      ? TfModelEmpty()
+      : TfModelLoaded(model: global.currentModel);
 
   @override
-  TfModelState get initialState => TfModelEmpty();
-
-  @override
-  Stream<TfModelState> mapEventToState(TfModelEvent event) async* {
+  Stream<TfState> mapEventToState(TfModelEvent event) async* {
     if (event is TfModelDownloadProgressEvent) {
       yield TfModelDownloading(
-          model: event.model,
-          received: event.received,
-          total: event.total);
+          model: event.model, received: event.received, total: event.total);
 
       if (event.received == event.total) {
+        var fw = File('${global.appDocDir}/models/mlist.json')
+            .openSync(mode: FileMode.write);
+        var map = new Map<String, List<TfModelInfo>>();
+        map["models"] = models;
+        fw.writeStringSync(json.encode(map));
+        fw.closeSync();
+
+        global.tflite =
+            const MethodChannel('net.pangolinai.mobile/museum_tflite');
+
+        var modelPath = '${global.appDocDir}/models/${event.model.name}';
+        final String result = await global.tflite
+            .invokeMethod('loadModel', {'model': '$modelPath'});
+        if (result != "success") {
+          throw result;
+        }
+        global.currentModel = event.model;
         yield TfModelLoaded(model: event.model);
       }
     }
@@ -126,15 +137,15 @@ class TfModelBloc extends Bloc<TfModelEvent, TfModelState> {
           throw "invalid model list file";
         }
 
-        var models = list.map((m) => TfModelInfo.fromJson(m)).toList();
+        models = list.map((m) => TfModelInfo.fromJson(m)).toList();
         if (models.length == 0) {
           throw "tfmodel was not found";
         }
 
         //删除不同步的本地文件
-        var docDir = (await getApplicationDocumentsDirectory()).path;
         List<TfModelInfo> cached;
-        var f = File('$docDir/models/mlist.json');
+        var f = File('${global.appDocDir}/models/mlist.json');
+        //f.deleteSync();
         if (await f.exists()) {
           var list = json.decode(await f.readAsString())['models'] as List;
           if (list != null) {
@@ -144,7 +155,7 @@ class TfModelBloc extends Bloc<TfModelEvent, TfModelState> {
               var i = models.indexWhere(
                   (v) => v.name == mi.name || v.md5Hash != mi.md5Hash);
               if (i < 0) {
-                await File('$docDir/models/${mi.name}').delete();
+                await File('${global.appDocDir}/models/${mi.name}').delete();
               }
             }
           }
@@ -152,85 +163,71 @@ class TfModelBloc extends Bloc<TfModelEvent, TfModelState> {
 
         //如果有必要， 下载模型
         for (var mi in models) {
-          var savePath = '$docDir/models/${mi.name}';
-          var savePathTmp = '$savePath.tmp';
-          var startRange = 0;
-
-          await _mergeFile(savePath, savePathTmp, true);
-
-          var f = File(savePath);
-          if (f.existsSync()) {
-            var digest = md5.convert(f.readAsBytesSync());
-            if ('$digest' == mi.md5Hash) {
-              continue;
-            }
-            startRange = await f.length();
-          }
-
-          //download the file
-          if (startRange != mi.size) {
-            var url = mi.downloadPath.startsWith("/")
-                ? '$cdn${mi.downloadPath}'
-                : '$cdn/${mi.downloadPath}';
-
-            try {
-              dio.download(
-                url, savePathTmp,
-                // Listen the download progress.
-                onReceiveProgress: (received, total) async {
-                  print(((startRange + received) / mi.size * 100)
-                          .toStringAsFixed(0) +
-                      "%");
-
-                  dispatch(TfModelDownloadProgressEvent(
-                      model:mi,
-                      received: startRange + received,
-                      total: mi.size));
-
-                  // yield TfModelDownloading(
-                  //     url: mi.downloadPath,
-                  //     localPath: savePath,
-                  //     received: startRange + received,
-                  //     total: mi.size);
-                  // _downloadWatchers.forEach((f) {
-                  //   f(savePath, startRange + received, mi.size);
-                  // });
-
-                  if (received == total) {
-                    await _mergeFile(savePath, savePathTmp, true);
-
-                    var fw = File('$docDir/models/mlist.json')
-                        .openSync(mode: FileMode.write);
-                    fw.writeStringSync(modelList);
-                    fw.closeSync();
-
-                    
-                  }
-                },
-                options: Options(
-                  headers: {"range": "bytes=$startRange-"}, //指定请求的内容区间
-                ),
-              );
-            } catch (e) {
-              yield TfModelDownloadError(error: e);
-              print(e);
-              File(savePath).deleteSync();
-              continue;
-            }
-          }
-
           //await _mergeFile(savePath, savePathTmp, true);
+          subscription?.cancel();
+          subscription = mi.download().listen((tfModelDownloadInfo) => dispatch(
+              TfModelDownloadProgressEvent(
+                  model: mi,
+                  received: tfModelDownloadInfo.received,
+                  total: tfModelDownloadInfo.total)));
           break; //temporarly we download the first model only
         }
-
-        // var fw =
-        //     File('$docDir/models/mlist.json').openSync(mode: FileMode.write);
-        // fw.writeStringSync(modelList);
-        // fw.closeSync();
-
-        
       } catch (e) {
         yield TfModelDownloadError(error: e);
+      }
+    }
+
+    if (event is TfDoPredictionEvent) {
+      List<int> feature;
+      try {
+        feature = await global.tflite
+            .invokeMethod('runModelOnImage', <String, dynamic>{
+          'path': event.imagePath,
+          'inputSize': 224, // wanted input size, defaults to 224
+          'numChannels': 3, // wanted input channels, defaults to 3
+          'imageMean': 127.5, // defaults to 117.0
+          'imageStd': 127.5, // defaults to 1.0
+          'numResults': 6, // defaults to 5
+          'threshold': 0.05, // defaults to 0.1
+          'numThreads': 1, // defaults to 1
+        });
+      } on PlatformException catch (e) {
+        print("$e");
+      }
+
+      var response = await http.post(
+          '${global.host}/predict2?k=5&language=${global.myLocale}',
+          headers: {'Content-Type': 'application/octet-stream'},
+          body: feature);
+      if (response.statusCode == 200) {
+        //print("${response.body}");
+        var results = json.decode(response.body)['results'] as List;
+        yield TfPredictionResults(
+            results: results.map((item) => ArtPredict.fromJson(item)).toList());
+
+        var scaledImage = event.imagePath + ".scale";
+        Map<String, IfdTag> data =
+            await readExifFromBytes(await new File(scaledImage).readAsBytes());
+        if (data == null || data.isEmpty) {
+          print("No EXIF information found");
+          
+        } else {
+          for (String key in data.keys) {
+            print("$key (${data[key].tagType}): ${data[key]}");
+          }
+        }
+
+        //upload the scaled image
+        FormData formData = new FormData.from({
+          "auth": "135246",
+          "files": [
+            new UploadFileInfo(
+                new File(event.imagePath + ".scale"), "upload.jpg"),
+          ]
+        });
+        global.dio.post("${global.host}/uploadscale", data: formData);
+      } else {
+        yield TfPredictionError(error: 'predict error: ${response.statusCode}');
       }
     }
   }

@@ -10,7 +10,7 @@ class TfModelRepository {
   TfModelRepository({@required this.host}) : assert(host != null);
 
   Future<String> getModelList() async {
-    var response = await dio.get("$host/model/list",
+    var response = await global.dio.get("$host/model/list",
         options: Options(responseType: ResponseType.plain));
     if (response.statusCode != 200) {
       print("error download model list");

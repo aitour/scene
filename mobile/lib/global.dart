@@ -1,23 +1,26 @@
-library aitour.globals;
-
-
+//library aitour.globals;
 import 'package:flutter/material.dart';
 import 'package:connectivity/connectivity.dart';
 import 'package:dio/dio.dart';
-import 'model.dart';
+import 'package:camera/camera.dart';
+import 'package:flutter/services.dart';
+import 'package:mobile/models/models.dart';
 
+class Global {
+  String appDocDir;
+  ConnectivityResult connectivityResult = ConnectivityResult.none;
+  MethodChannel tflite;
+  TfModelInfo currentModel;
+  bool isLoggedIn = false;
 
-String gAppDocDir;
-ConnectivityResult gConnectivityResult = ConnectivityResult.none;
-bool gIsLoggedIn = false;
+  Locale myLocale;
+  List<CameraDescription> cameras;
+  final dio = new Dio();
+  final onlyWifiDioToken = new CancelToken();
 
-var dio = new Dio();
-var modelManager = new TfLiteModelManager();
-
-Locale gMyLocale = null;
 //const host = 'http://192.168.0.220:8081';
-const host = 'http://pangolinai.net';
-const cdn = 'http://cdn.pangolinai.net';
-//const host = 'http://192.168.1.8:8081';
+  final host = 'http://pangolinai.net';
+  final cdn = 'http://cdn.pangolinai.net';
+}
 
-
+var global = Global();

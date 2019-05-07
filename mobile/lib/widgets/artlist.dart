@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:audioplayers/audioplayers.dart';
-import './model.dart';
-import './global.dart' as globals;
+import 'package:mobile/models/models.dart';
+import '../global.dart';
 
 class ArtListView extends StatefulWidget {
   final List<ArtPredict> predicts;
@@ -26,7 +26,7 @@ class _ArtListViewState extends State<ArtListView> {
 
   void asyncInit() async {
     for (var item in this.widget.predicts) {
-      http.get('${globals.cdn}/art/${item.id}').then((response) {
+      http.get('${global.cdn}/art/${item.id}').then((response) {
         if (response.statusCode == 200) {
           var obj = json.decode(response.body);
           if (obj["error"] == null) {
@@ -90,8 +90,8 @@ class _ArtInfoCardState extends State<ArtInfoCard> {
       widgets.add(CachedNetworkImage(
         //imageUrl: "http://via.placeholder.com/350x150",
         imageUrl: art.images[0].startsWith("/")
-            ? "${globals.cdn}${art.images[0]}"
-            : "${globals.cdn}/${art.images[0]}",
+            ? "${global.cdn}${art.images[0]}"
+            : "${global.cdn}/${art.images[0]}",
         placeholder: new CircularProgressIndicator(),
         errorWidget: new Icon(Icons.broken_image),
       ));
@@ -100,8 +100,8 @@ class _ArtInfoCardState extends State<ArtInfoCard> {
     art.audios.forEach((url) {
       widgets.add(AudioPlayerWidget(
           url: url.startsWith("/")
-              ? "${globals.cdn}$url"
-              : "${globals.cdn}/$url"));
+              ? "${global.cdn}$url"
+              : "${global.cdn}/$url"));
     });
 
     widgets.add(Padding(

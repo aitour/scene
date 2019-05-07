@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import './global.dart' as globals;
+import './global.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -28,7 +28,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final locale = prefs.getString("locale");
     if (locale != null) {
       final lanSscriptCountry = locale.split("_");
-      globals.gMyLocale = Locale.fromSubtags(
+      global.myLocale = Locale.fromSubtags(
           languageCode: lanSscriptCountry[0],
           scriptCode: lanSscriptCountry[1],
           countryCode: lanSscriptCountry[2]);
@@ -39,7 +39,7 @@ class _ProfilePageState extends State<ProfilePage> {
   void changeLocale(Locale newLocale) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setString("locale", newLocale.toString());
-    globals.gMyLocale = newLocale;
+    global.myLocale = newLocale;
     setState(() {});
   }
 
@@ -61,8 +61,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         child: Text(l.toString()),
                       ))
                   .toList(),
-              value: supportedLocales.indexOf(globals.gMyLocale) >= 0
-                  ? globals.gMyLocale
+              value: supportedLocales.indexOf(global.myLocale) >= 0
+                  ? global.myLocale
                   : supportedLocales[0],
               onChanged: changeLocale,
             ),

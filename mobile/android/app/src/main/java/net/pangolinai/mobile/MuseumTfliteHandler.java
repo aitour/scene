@@ -37,8 +37,10 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+//import java.util.Calendar;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
@@ -50,6 +52,7 @@ import java.util.Vector;
 
 public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
     public static final String CHANNEL = "net.pangolinai.mobile/museum_tflite";
+    public static final String TAG = MuseumTfliteHandler.class.getName();
     private final PluginRegistry.Registrar mRegistrar;
     private Interpreter tfLite;
     float[][] labelProb;
@@ -125,89 +128,43 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
         return "success";
     }
 
-    private ByteBuffer loadImage(String path, int width, int height, int channels, float mean, float std)
-            throws IOException {
-        InputStream inputStream = new FileInputStream(path.replace("file://",""));
-        Bitmap bitmapRaw = BitmapFactory.decodeStream(inputStream);
-
-        Matrix matrix = getTransformationMatrix(
-                bitmapRaw.getWidth(), bitmapRaw.getHeight(),
-                width, height, false);
-
-        int[] intValues = new int[width * height];
-        ByteBuffer imgData = ByteBuffer.allocateDirect(1 * width * height * channels * BYTES_PER_CHANNEL);
-        imgData.order(ByteOrder.nativeOrder());
-
-        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        final Canvas canvas = new Canvas(bitmap);
-        canvas.drawBitmap(bitmapRaw, matrix, null);
-        bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
-
-        int pixel = 0;
-        for (int i = 0; i < width; ++i) {
-            for (int j = 0; j < height; ++j) {
-                int pixelValue = intValues[pixel++];
-                imgData.putFloat((((pixelValue >> 16) & 0xFF) - mean) / std);
-                imgData.putFloat((((pixelValue >> 8) & 0xFF) - mean) / std);
-                imgData.putFloat(((pixelValue & 0xFF) - mean) / std);
-            }
-        }
-
-        return imgData;
-    }
-
-//    private String getTagString(String tag, ExifInterface exif)
-//    {
-//        return(tag + " : " + exif.getAttribute(tag) + "\n");
-//    }
-
-//    private displayExit(String path) throws IOException {
-//        ExifInterface exif = new ExifInterface(path);
-//        String myAttribute="Exif information ---\n";
-//        myAttribute += getTagString(ExifInterface.TAG_DATETIME, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_FLASH, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_GPS_LATITUDE, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_GPS_LATITUDE_REF, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_GPS_LONGITUDE, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_GPS_LONGITUDE_REF, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_IMAGE_LENGTH, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_IMAGE_WIDTH, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_MAKE, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_MODEL, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_ORIENTATION, exif);
-//        myAttribute += getTagString(ExifInterface.TAG_WHITE_BALANCE, exif);
-//        Log.e("tflite", myAttribute);
-//    }
-
-//    private void saveImage(Bitmap finalBitmap, String image_name) {
-//        String root = Environment.getExternalStorageDirectory().toString();
-//        File myDir = new File(root);
-//        myDir.mkdirs();
-//        String fname = "Image-" + image_name+ ".jpg";
-//        File file = new File(myDir, fname);
-//        if (file.exists()) file.delete();
-//        Log.i("tflite", root + fname);
-//        try {
-//            FileOutputStream out = new FileOutputStream(file);
-//            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out);
-//            out.flush();
-//            out.close();
-//        } catch (Exception e) {
-//            e.printStackTrace();
+//    private ByteBuffer loadImage(String path, int width, int height, int channels, float mean, float std)
+//            throws IOException {
+//        InputStream inputStream = new FileInputStream(path.replace("file://",""));
+//        Bitmap bitmapRaw = BitmapFactory.decodeStream(inputStream);
+//
+//        Matrix matrix = getTransformationMatrix(
+//                bitmapRaw.getWidth(), bitmapRaw.getHeight(),
+//                width, height, false);
+//
+//        int[] intValues = new int[width * height];
+//        ByteBuffer imgData = ByteBuffer.allocateDirect(1 * width * height * channels * BYTES_PER_CHANNEL);
+//        imgData.order(ByteOrder.nativeOrder());
+//
+//        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+//        final Canvas canvas = new Canvas(bitmap);
+//        canvas.drawBitmap(bitmapRaw, matrix, null);
+//        bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
+//
+//        int pixel = 0;
+//        for (int i = 0; i < width; ++i) {
+//            for (int j = 0; j < height; ++j) {
+//                int pixelValue = intValues[pixel++];
+//                imgData.putFloat((((pixelValue >> 16) & 0xFF) - mean) / std);
+//                imgData.putFloat((((pixelValue >> 8) & 0xFF) - mean) / std);
+//                imgData.putFloat(((pixelValue & 0xFF) - mean) / std);
+//            }
 //        }
+//
+//        return imgData;
 //    }
+
 
     @TargetApi(Build.VERSION_CODES.FROYO)
-    private List<ByteBuffer> loadImage2(String path, int width, int corps)  throws IOException {
-        Log.e("tflite", String.format("%s %d", path, new File(path).length()));
+    private List<ByteBuffer> loadImage(String path, int width, int corps)  throws IOException {
+        Log.e(TAG, String.format("%s %d", path, new File(path).length()));
         InputStream inputStream = new FileInputStream(path.replace("file://",""));
         Bitmap bitmapRaw = BitmapFactory.decodeStream(inputStream);
-
-//        MediaStore.Images.Media.insertImage(
-//                mRegistrar.context().getContentResolver(),
-//                bitmapRaw,
-//                "image_file",
-//                "file");
 
         int rawWidth = bitmapRaw.getWidth(), rawHeight = bitmapRaw.getHeight();
         int minSide = Math.min(rawWidth, rawHeight);
@@ -232,12 +189,13 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
 //                "file");
 
         //write a scaled image to disk
+        String scaleFilePath = path + ".scale";
         File file = new File(path + ".scale");
         OutputStream fOutputStream = new FileOutputStream(file);
         scaledBmp.compress(Bitmap.CompressFormat.JPEG, 100, fOutputStream);
         fOutputStream.flush();
         fOutputStream.close();
-        
+        copyExif(path, scaleFilePath);
 
         Bitmap[] testBmp = { scaledBmp };
         List<ByteBuffer> buffers = new ArrayList<ByteBuffer>();
@@ -289,7 +247,7 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
 
         //ByteBuffer imgData = loadImage(path, WANTED_WIDTH, WANTED_HEIGHT, WANTED_CHANNELS, IMAGE_MEAN, IMAGE_STD);
         Log.e("tflite", "load image2");
-        List<ByteBuffer> buffers = loadImage2(path, WANTED_WIDTH, 3);
+        List<ByteBuffer> buffers = loadImage(path, WANTED_WIDTH, 3);
         Log.e("tflite", String.format("load image2 ok. buffer len:%d", buffers.size()));
 
         tfLite.setNumThreads(NUM_THREADS);
@@ -355,5 +313,47 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
 
         matrix.invert(new Matrix());
         return matrix;
+    }
+
+
+    @TargetApi(Build.VERSION_CODES.ECLAIR)
+    private void copyExif(String filePathOri, String filePathDest) {
+        try {
+            ExifInterface oldExif = new ExifInterface(filePathOri);
+            ExifInterface newExif = new ExifInterface(filePathDest);
+
+            List<String> attributes =
+                    Arrays.asList(
+                            "FNumber",
+                            "ExposureTime",
+                            "ISOSpeedRatings",
+                            "GPSAltitude",
+                            "GPSAltitudeRef",
+                            "FocalLength",
+                            "GPSDateStamp",
+                            "WhiteBalance",
+                            "GPSProcessingMethod",
+                            "GPSTimeStamp",
+                            "DateTime",
+                            "Flash",
+                            "GPSLatitude",
+                            "GPSLatitudeRef",
+                            "GPSLongitude",
+                            "GPSLongitudeRef",
+                            ExifInterface.TAG_GPS_ALTITUDE,
+                            ExifInterface.TAG_GPS_ALTITUDE_REF,
+                            "Make",
+                            "Model",
+                            "Orientation");
+            for (String attribute : attributes) {
+                if (oldExif.getAttribute(attribute) != null) {
+                    newExif.setAttribute(attribute, oldExif.getAttribute(attribute));
+                }
+            }
+            newExif.saveAttributes();
+
+        } catch (Exception ex) {
+            Log.e(TAG, "Error preserving Exif data on selected image: " + ex);
+        }
     }
 }

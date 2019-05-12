@@ -1,6 +1,7 @@
 import 'dart:async'; // for Future
 import 'dart:io'; //for File
 import 'dart:convert'; //for json
+import 'dart:isolate';
 import 'package:crypto/crypto.dart'; //for md5
 import 'package:meta/meta.dart';
 import 'package:bloc/bloc.dart';
@@ -35,6 +36,11 @@ class TfModelDownloadProgressEvent extends TfModelEvent {
 class TfDoPredictionEvent extends TfModelEvent {
   final String imagePath;
   TfDoPredictionEvent({@required this.imagePath}) : super([imagePath]);
+}
+
+class TfModelErrorEvent extends TfModelEvent {
+  final dynamic e;
+  TfModelErrorEvent({this.e});
 }
 
 //state
@@ -86,7 +92,8 @@ class TfPredictionShowingResults extends TfState {}
 //bloc
 class TfModelBloc extends Bloc<TfModelEvent, TfState> {
   final TfModelRepository repo;
-  StreamSubscription subscription;
+  //StreamSubscription subscription;
+  Isolate isolate;
   List<TfModelInfo> models;
 
   TfModelBloc({@required this.repo}) : assert(repo != null);
@@ -97,7 +104,18 @@ class TfModelBloc extends Bloc<TfModelEvent, TfState> {
       : TfModelLoaded(model: global.currentModel);
 
   @override
+  void dispose() {
+    // TODO: implement dispose
+    if (isolate != null) {
+      print('killing isolate');
+      isolate.kill(priority: Isolate.immediate);
+      isolate = null;
+    }
+  }
+
+  @override
   Stream<TfState> mapEventToState(TfModelEvent event) async* {
+    print("mapEvent:$event");
     if (event is TfModelDownloadProgressEvent) {
       yield TfModelDownloading(
           model: event.model, received: event.received, total: event.total);
@@ -126,55 +144,27 @@ class TfModelBloc extends Bloc<TfModelEvent, TfState> {
 
     if (event is TfModelCheckModelUpdateEvent) {
       yield TfModelChecking();
-      try {
-        final modelList = await repo.getModelList();
-        if (modelList.length == 0) {
-          throw "download model list error";
-        }
 
-        var list = (json.decode(modelList) as Map)['models'] as List;
-        if (list == null) {
-          throw "invalid model list file";
+      //有本地model， 则先用本地的
+      var localModels = await getLocalModel();
+      if (localModels.length == 0) {
+      } else {
+        //check local model info
+        if (global.tflite == null) {
+          global.tflite =
+              const MethodChannel('net.pangolinai.mobile/museum_tflite');
         }
-
-        models = list.map((m) => TfModelInfo.fromJson(m)).toList();
-        if (models.length == 0) {
-          throw "tfmodel was not found";
+        var modelPath = '${global.appDocDir}/models/${localModels[0].name}';
+        final String result = await global.tflite
+            .invokeMethod('loadModel', {'model': '$modelPath'});
+        if (result != "success") {
+          throw result;
         }
-
-        //删除不同步的本地文件
-        List<TfModelInfo> cached;
-        var f = File('${global.appDocDir}/models/mlist.json');
-        //f.deleteSync();
-        if (await f.exists()) {
-          var list = json.decode(await f.readAsString())['models'] as List;
-          if (list != null) {
-            cached = list.map((m) => TfModelInfo.fromJson(m)).toList();
-
-            for (var mi in cached) {
-              var i = models.indexWhere(
-                  (v) => v.name == mi.name || v.md5Hash != mi.md5Hash);
-              if (i < 0) {
-                await File('${global.appDocDir}/models/${mi.name}').delete();
-              }
-            }
-          }
-        }
-
-        //如果有必要， 下载模型
-        for (var mi in models) {
-          //await _mergeFile(savePath, savePathTmp, true);
-          subscription?.cancel();
-          subscription = mi.download().listen((tfModelDownloadInfo) => dispatch(
-              TfModelDownloadProgressEvent(
-                  model: mi,
-                  received: tfModelDownloadInfo.received,
-                  total: tfModelDownloadInfo.total)));
-          break; //temporarly we download the first model only
-        }
-      } catch (e) {
-        yield TfModelDownloadError(error: e);
+        global.currentModel = localModels[0];
+        yield TfModelLoaded(model: localModels[0]);
       }
+
+      checkModelUpdate();
     }
 
     if (event is TfDoPredictionEvent) {
@@ -205,17 +195,16 @@ class TfModelBloc extends Bloc<TfModelEvent, TfState> {
         yield TfPredictionResults(
             results: results.map((item) => ArtPredict.fromJson(item)).toList());
 
-        var scaledImage = event.imagePath + ".scale";
-        Map<String, IfdTag> data =
-            await readExifFromBytes(await new File(scaledImage).readAsBytes());
-        if (data == null || data.isEmpty) {
-          print("No EXIF information found");
-          
-        } else {
-          for (String key in data.keys) {
-            print("$key (${data[key].tagType}): ${data[key]}");
-          }
-        }
+        // var scaledImage = event.imagePath + ".scale";
+        // Map<String, IfdTag> data =
+        //     await readExifFromBytes(await new File(scaledImage).readAsBytes());
+        // if (data == null || data.isEmpty) {
+        //   print("No EXIF information found");
+        // } else {
+        //   for (String key in data.keys) {
+        //     print("$key (${data[key].tagType}): ${data[key]}");
+        //   }
+        // }
 
         //upload the scaled image
         FormData formData = new FormData.from({
@@ -230,5 +219,100 @@ class TfModelBloc extends Bloc<TfModelEvent, TfState> {
         yield TfPredictionError(error: 'predict error: ${response.statusCode}');
       }
     }
+  }
+
+  //获取本地缓存��model信息
+  Future<List<TfModelInfo>> getLocalModel() async {
+    List<TfModelInfo> cached;
+    var f = File('${global.appDocDir}/models/mlist.json');
+    if (await f.exists()) {
+      var list = json.decode(await f.readAsString())['models'] as List;
+      if (list != null) {
+        cached = list.map((m) => TfModelInfo.fromJson(m)).toList();
+      }
+    }
+    return cached;
+  }
+
+  Future<void> checkModelUpdate() async {
+    try {
+      print("get model list");
+      final modelList = await repo.getModelList();
+      if (modelList.length == 0) {
+        throw "download model list error";
+      }
+
+      var list = (json.decode(modelList) as Map)['models'] as List;
+      if (list == null) {
+        throw "invalid model list file";
+      }
+
+      models = list.map((m) => TfModelInfo.fromJson(m)).toList();
+      if (models.length == 0) {
+        throw "tfmodel was not found";
+      }
+
+      //删除不同步的本地文件
+      var localModels = await getLocalModel();
+      for (var mi in localModels) {
+        var i = models
+            .indexWhere((v) => v.name == mi.name || v.md5Hash != mi.md5Hash);
+        if (i < 0) {
+          await File('${global.appDocDir}/models/${mi.name}').delete();
+        }
+      }
+
+      //如果有必要， 下载模型
+      for (var mi in models) {
+        //await _mergeFile(savePath, savePathTmp, true);
+        // subscription?.cancel();
+        // subscription = mi.download().listen((tfModelDownloadInfo) {
+        //   dispatch(
+        //     TfModelDownloadProgressEvent(
+        //         model: mi,
+        //         received: tfModelDownloadInfo.received,
+        //         total: tfModelDownloadInfo.total)
+        //         );
+        //         });
+
+        ReceivePort receivePort =
+            ReceivePort(); //port for this main isolate to receive messages.
+        isolate = await Isolate.spawn(downloadIsolate, receivePort.sendPort);
+         // The 'echo' isolate sends it's SendPort as the first message
+        var sendPort = await receivePort.first;
+        sendPort.send(mi);
+
+        receivePort.listen((data) {
+          print('RECEIVE: $data');
+          if (data is TfModelDownloadProgressEvent) {
+            dispatch(data);
+          }
+        });
+
+        break; //temporarly we download the first model only
+      }
+    } catch (e) {
+      dispatch(TfModelErrorEvent(e: e));
+      //yield TfModelDownloadError(error: e);
+    }
+  }
+}
+
+void downloadIsolate(SendPort sendPort) async {
+  // Open the ReceivePort for incoming messages.
+  var port = new ReceivePort();
+
+  // Notify any other isolates what port this isolate listens to.
+  sendPort.send(port.sendPort);
+
+  var mi = await port.first;
+  if (mi is TfModelInfo) {
+    print("start download");
+    StreamSubscription subscription = mi.download().listen((tfModelDownloadInfo) {
+      sendPort.send(TfModelDownloadProgressEvent(
+          model: mi,
+          received: tfModelDownloadInfo.received,
+          total: tfModelDownloadInfo.total));
+    });
   }
 }

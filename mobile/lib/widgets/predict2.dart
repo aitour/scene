@@ -29,18 +29,21 @@ class _Predict2PageState extends State<Predict2Page> {
   //TfModelBloc _tfModelBloc;
   CameraController controller;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _cameraInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    //_tfModelBloc = TfModelBloc(repo: widget.tfModelRepo);
 
     controller = CameraController(global.cameras[0], ResolutionPreset.medium);
     controller.initialize().then((_) {
       if (!mounted) {
         return;
       }
-      setState(() {});
+      setState(() {
+        print('camera was initialized');
+        _cameraInitialized = true;
+      });
     });
   }
 
@@ -73,9 +76,11 @@ class _Predict2PageState extends State<Predict2Page> {
         child: BlocBuilder(
             bloc: BlocProvider.of<TfModelBloc>(context),
             builder: (BuildContext context, TfState state) {
+              print("state:$state");
               if (state is TfModelEmpty) {
                 BlocProvider.of<TfModelBloc>(context)
                     .dispatch(TfModelCheckModelUpdateEvent());
+                return Center(child:Text("loading model..."));
               }
               else if (state is TfModelDownloadError) {
                 return Text("model download error: " + state.error);
@@ -90,9 +95,9 @@ class _Predict2PageState extends State<Predict2Page> {
               }
               else if (state is TfPredictionStart) {
                 return CircularProgressIndicator();
-              }
+              } 
 
-              return _cameraWidget();
+              return _cameraInitialized ? _cameraWidget() : Center(child:Text("wating for camera"));
             }),
       ),
       floatingActionButton: Column(

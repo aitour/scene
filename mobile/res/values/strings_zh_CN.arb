@@ -2,7 +2,15 @@
   "cancelButtonLabel": "取消",
   "applicationName": "AiTour",
   "takePhoto": "拍照",
+  "takePhotoAndPredict": "拍照识别",
   "tabHome": "主页",
   "tabTour": "向导",
-  "tabProfile": "我的"
+  "tabProfile": "我的",
+  "predictResult": "识别结果",
+  "error": "错误",
+  "predictError": "识别错误",
+  "close": "关闭",
+  "calculating": "计算中, 请稍候...",
+  "loadingModel": "模型加载中...",
+  "preferedLanguage": "语言"
 }

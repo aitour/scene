@@ -21,32 +21,35 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^0.1.2
-  geolocator: ^2.1.1
-  camera: ^0.2.9+1
-  image_picker: ^0.4.10
-  shared_preferences: ^0.4.3
-  path_provider: ^0.4.1
-  video_player: ^0.8.0
-  flutter_map: ^0.3.0
-  latlong: ^0.6.1
-  latlngconv: ^0.1.0
-  http: ^0.12.0+1
+  #geolocator: ^2.1.1
+  camera: 
+  #image_picker: ^0.4.10
+  shared_preferences: 
+  path_provider: 
+  video_player: 
+  latlong: 
+  latlngconv: 
+  #http: ^0.12.0+1
   connectivity: ^0.3.2
   crypto: ^2.0.6
-  synchronized: ^1.5.3+2
-  cached_network_image: ^0.5.1
-  audioplayers: ^0.8.0
-  dio: 2.1.0
-  exif: 
-  bloc: 
-  flutter_bloc: 
-  equatable: ^0.2.0
-  rxdart: 0.22.0
+  synchronized: 
+  cached_network_image: ^0.8.0
+  rxdart:
+  audioplayers: 
+  dio: 
+  provider: 
+  get_it:
+  url_launcher:
+  webview_flutter:
   
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  test:
+  json_model: #latest version
+  build_runner: ^1.0.0
+  json_serializable: ^2.0.0
 
 
 # For information on the generic Dart part of this file, see the

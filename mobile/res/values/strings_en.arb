@@ -2,7 +2,15 @@
   "cancelButtonLabel": "CANCEL",
   "applicationName": "AiTour",
   "takePhoto": "Take Photo",
+  "takePhotoAndPredict": "Take Photo And Recognize it",
   "tabHome": "Home",
   "tabTour": "Tour",
-  "tabProfile": "Profile"
+  "tabProfile": "Profile",
+  "predictResult": "Predict result",
+  "error": "Error",
+  "predictError": "Predict error",
+  "close": "Close",
+  "calculating": "Calculating, please wait...",
+  "loadingModel": "loading modal...",
+  "preferedLanguage": "Language"
 }

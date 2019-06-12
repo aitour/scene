@@ -10,6 +10,11 @@ import android.graphics.Matrix;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.GradientDrawable;
 import android.media.ExifInterface;
+import android.renderscript.Allocation;
+import android.renderscript.Element;
+import android.renderscript.RenderScript;
+import android.renderscript.ScriptIntrinsicYuvToRGB;
+import android.renderscript.Type;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -24,6 +29,7 @@ import io.flutter.plugin.common.PluginRegistry;
 import org.tensorflow.lite.Interpreter;
 
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
@@ -48,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
+import java.util.Scanner;
 import java.util.Vector;
 
 public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
@@ -60,6 +67,8 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
     final static int IMAGE_SIZE = 224;
     final static int BYTES_PER_CHANNEL = 4;
     final static String OUTPUT_LAYER = "global_average_pooling2d_1";
+    final static List<float[]> features = new ArrayList<>();
+    final static List<Double> featuresNorm = new ArrayList<>();
 
 
     public static void registerWith(PluginRegistry.Registrar registrar) {
@@ -74,6 +83,7 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
     @Override
     public void onMethodCall(MethodCall call, MethodChannel.Result result) {
         if (call.method.equals("loadModel")) {
+            Log.e(TAG, "loadModel");
             try {
                 String res = loadModel((HashMap) call.arguments);
                 result.success(res);
@@ -93,7 +103,23 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
             catch (Exception e) {
                 result.error("Failed to run model" , e.getMessage(), e);
             }
-        } else if (call.method.equals("runModelOnBinary")) {
+        }
+        else if (call.method.equals("runModelOnImageOffline")) {
+            try {
+                List<ScoreEntry> scores  = runModelOnImageOffLine((HashMap) call.arguments);
+                ByteBuffer buf = ByteBuffer.allocate(scores.size() * 8 + 4).order(ByteOrder.LITTLE_ENDIAN);
+                buf.putFloat((float)scores.size());
+                for (int i = 0; i < scores.size(); i++) {
+                    buf.putFloat((float)scores.get(i).score);
+                    buf.putFloat((float)scores.get(i).index);
+                }
+                result.success(buf.array());
+            }
+            catch (Exception e) {
+                result.error("Failed to run model" , e.getMessage(), e);
+            }
+        }
+        else if (call.method.equals("runModelOnBinary")) {
             try {
                 float[] feature = runModelOnBinary((HashMap) call.arguments);
                 ByteBuffer buf = ByteBuffer.allocate(feature.length * 4).order(ByteOrder.LITTLE_ENDIAN);
@@ -110,8 +136,37 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
         }
     }
 
+    private double norm(double []array) {
+        if (array.length == 0) return 0;
+        double avg = 0;
+        for (int i = 0; i < array.length; i++) {
+            avg += array[i];
+        }
+        double n = 0;
+        for (int i = 0; i < array.length; i++) {
+             n += (array[i] - avg) * (array[i] - avg);
+        }
+        return Math.sqrt(n);
+    }
+
+    private double norm(float []array) {
+        if (array.length == 0) return 0;
+        double avg = 0;
+        for (int i = 0; i < array.length; i++) {
+            avg += array[i];
+        }
+        double n = 0;
+        for (int i = 0; i < array.length; i++) {
+            n += (array[i] - avg) * (array[i] - avg);
+        }
+        return Math.sqrt(n);
+    }
+
     private String loadModel(HashMap args) throws IOException {
         String model = args.get("model").toString();
+        String index = args.get("index").toString();
+        Log.e(TAG, "model:" + model);
+        Log.e(TAG, "index:" + index);
         //AssetManager assetManager = mRegistrar.context().getAssets();
         //String key = mRegistrar.lookupKeyForAsset(model);
 
@@ -125,6 +180,28 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
         MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
         tfLite = new Interpreter(buffer);
 
+        if (index != null && index.length() > 0) {
+            Log.e(TAG, "load index file");
+            DataInputStream dis = new DataInputStream(new FileInputStream(index));
+            byte [] data = new byte[dis.available()];
+            dis.readFully(data);
+            ByteBuffer buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+            int dimention = (int)buf.getFloat();
+            Log.e(TAG, "dimention:" + dimention);
+            while(buf.position() < data.length) {
+                try {
+                    float[] farray = new float[dimention];
+                    for (int i = 0; i < dimention; i++) {
+                        farray[i] = buf.getFloat();
+                    }
+                    features.add(farray);
+                    featuresNorm.add(norm(farray));
+                }catch (Exception e) {
+                    Log.e(TAG, "read index file error:"+ e.toString());
+                }
+            }
+            Log.e(TAG, "load index file ok:" + features.size());
+        }
         return "success";
     }
 
@@ -159,27 +236,43 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
 //        return imgData;
 //    }
 
+    public Allocation renderScriptNV21ToRGBA888(android.content.Context context, int width, int height, byte[] nv21) {
+        // https://stackoverflow.com/a/36409748
+        RenderScript rs = RenderScript.create(context);
+        ScriptIntrinsicYuvToRGB yuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(rs, Element.U8_4(rs));
+
+        Type.Builder yuvType = new Type.Builder(rs, Element.U8(rs)).setX(nv21.length);
+        Allocation in = Allocation.createTyped(rs, yuvType.create(), Allocation.USAGE_SCRIPT);
+
+        Type.Builder rgbaType = new Type.Builder(rs, Element.RGBA_8888(rs)).setX(width).setY(height);
+        Allocation out = Allocation.createTyped(rs, rgbaType.create(), Allocation.USAGE_SCRIPT);
+
+        in.copyFrom(nv21);
+
+        yuvToRgbIntrinsic.setInput(in);
+        yuvToRgbIntrinsic.forEach(out);
+        return out;
+    }
+
 
     @TargetApi(Build.VERSION_CODES.FROYO)
-    private List<ByteBuffer> loadImage(String path, int width, int corps)  throws IOException {
-        Log.e(TAG, String.format("%s %d", path, new File(path).length()));
-        InputStream inputStream = new FileInputStream(path.replace("file://",""));
-        Bitmap bitmapRaw = BitmapFactory.decodeStream(inputStream);
-
+    private List<ByteBuffer> loadImage(Bitmap bitmapRaw, int width, int corps, String imagePath)  throws IOException {
         int rawWidth = bitmapRaw.getWidth(), rawHeight = bitmapRaw.getHeight();
         int minSide = Math.min(rawWidth, rawHeight);
         float scale = (float)width / (float)minSide;
         Matrix matrix = new Matrix();
         matrix.postScale(scale, scale);
-        ExifInterface exif = new ExifInterface(path);
-        String orientation = exif.getAttribute(ExifInterface.TAG_ORIENTATION);
-        //Log.e("tflite", String.format("rawWidth:%d, rawHeight:%d, orientation:%s", rawWidth, rawHeight, orientation));
-        if (orientation.equals("6")) {
-            matrix.postRotate(90);
-        } else if (orientation.equals("3")) {
-            matrix.postRotate(180);
-        } else if (orientation.equals("8")) {
-            matrix.postRotate(270);
+        if (imagePath != null && imagePath.length() > 0) {
+            ExifInterface exif = new ExifInterface(imagePath);
+            String orientation = exif.getAttribute(ExifInterface.TAG_ORIENTATION);
+            //Log.e("tflite", String.format("rawWidth:%d, rawHeight:%d, orientation:%s", rawWidth, rawHeight, orientation));
+            if (orientation.equals("6")) {
+                matrix.postRotate(90);
+            } else if (orientation.equals("3")) {
+                matrix.postRotate(180);
+            } else if (orientation.equals("8")) {
+                matrix.postRotate(270);
+            }
         }
         Bitmap scaledBmp = Bitmap.createBitmap(bitmapRaw, 0, 0, rawWidth, rawHeight, matrix, true);
 //        MediaStore.Images.Media.insertImage(
@@ -189,13 +282,15 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
 //                "file");
 
         //write a scaled image to disk
-        String scaleFilePath = path + ".scale";
-        File file = new File(path + ".scale");
-        OutputStream fOutputStream = new FileOutputStream(file);
-        scaledBmp.compress(Bitmap.CompressFormat.JPEG, 100, fOutputStream);
-        fOutputStream.flush();
-        fOutputStream.close();
-        copyExif(path, scaleFilePath);
+        if (imagePath != null && imagePath.length() > 0) {
+            String scaleFilePath = imagePath + ".scale";
+            File file = new File(imagePath + ".scale");
+            OutputStream fOutputStream = new FileOutputStream(file);
+            scaledBmp.compress(Bitmap.CompressFormat.JPEG, 100, fOutputStream);
+            fOutputStream.flush();
+            fOutputStream.close();
+            copyExif(imagePath, scaleFilePath);
+        }
 
         Bitmap[] testBmp = { scaledBmp };
         List<ByteBuffer> buffers = new ArrayList<ByteBuffer>();
@@ -247,7 +342,10 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
 
         //ByteBuffer imgData = loadImage(path, WANTED_WIDTH, WANTED_HEIGHT, WANTED_CHANNELS, IMAGE_MEAN, IMAGE_STD);
         Log.e("tflite", "load image2");
-        List<ByteBuffer> buffers = loadImage(path, WANTED_WIDTH, 3);
+        Log.e(TAG, String.format("%s %d", path, new File(path).length()));
+        InputStream inputStream = new FileInputStream(path.replace("file://",""));
+        Bitmap bitmapRaw = BitmapFactory.decodeStream(inputStream);
+        List<ByteBuffer> buffers = loadImage(bitmapRaw, WANTED_WIDTH, 3, path);
         Log.e("tflite", String.format("load image2 ok. buffer len:%d", buffers.size()));
 
         tfLite.setNumThreads(NUM_THREADS);
@@ -270,6 +368,123 @@ public class MuseumTfliteHandler implements MethodChannel.MethodCallHandler {
         }
 
         return composeFeature;
+    }
+    class ScoreEntry {
+        double score;
+        int index;
+
+        public ScoreEntry(double score, int index) {
+            this.score = score;
+            this.index = index;
+        }
+    }
+
+    private List<ScoreEntry> runModelOnImageOffLine(HashMap args) throws IOException {
+        List<byte[]> bytesList = (ArrayList) args.get("bytesList");
+        int imageWidth = (int)args.get("imageWidth");
+        int imageHeight = (int)args.get("imageHeight");
+        int rotation = (int)args.get("rotation");
+        int NUM_THREADS = (int)args.get("numThreads");
+        int WANTED_WIDTH = (int)args.get("inputSize");
+        int WANTED_HEIGHT = (int)args.get("inputSize");
+        int WANTED_CHANNELS = (int)args.get("numChannels");
+        double mean = (double)(args.get("imageMean"));
+        float IMAGE_MEAN = (float)mean;
+        double std = (double)(args.get("imageStd"));
+        float IMAGE_STD = (float)std;
+        int NUM_RESULTS = (int)args.get("numResults");
+        double threshold = (double)args.get("threshold");
+        int k = (int)args.get("k");
+        float THRESHOLD = (float)threshold;
+
+        //ByteBuffer imgData = loadImage(path, WANTED_WIDTH, WANTED_HEIGHT, WANTED_CHANNELS, IMAGE_MEAN, IMAGE_STD);
+        Log.e("tflite", "load image2");
+        ByteBuffer Y = ByteBuffer.wrap(bytesList.get(0));
+        ByteBuffer U = ByteBuffer.wrap(bytesList.get(1));
+        ByteBuffer V = ByteBuffer.wrap(bytesList.get(2));
+
+        int Yb = Y.remaining();
+        int Ub = U.remaining();
+        int Vb = V.remaining();
+
+        byte[] data = new byte[Yb + Ub + Vb];
+
+        Y.get(data, 0, Yb);
+        V.get(data, Yb, Vb);
+        U.get(data, Yb + Vb, Ub);
+
+        Bitmap bitmapRaw = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888);
+        Allocation bmData = renderScriptNV21ToRGBA888(
+                mRegistrar.context(),
+                imageWidth,
+                imageHeight,
+                data);
+        bmData.copyTo(bitmapRaw);
+
+        Matrix matrix = new Matrix();
+        matrix.postRotate(rotation);
+        bitmapRaw = Bitmap.createBitmap(bitmapRaw, 0, 0, bitmapRaw.getWidth(), bitmapRaw.getHeight(), matrix, true);
+
+        List<ByteBuffer> buffers = loadImage(bitmapRaw, WANTED_WIDTH, 3, null);
+        Log.e("tflite", String.format("load image2 ok. buffer len:%d", buffers.size()));
+
+        tfLite.setNumThreads(NUM_THREADS);
+
+//        Map<Integer, Object> features = new HashMap();
+//        for (int i = 0; i < buffers.size(); i++) {
+//            features.put(i, new float[1][CLASS_NUM]);
+//        }
+//        tfLite.runForMultipleInputsOutputs(buffers.toArray(), features);
+
+        float[] weights = {0.3f, 0.4f, 0.3f};
+        int dim = 512;
+        float[] composeFeature = new float[dim];
+        float[][] feature = new float[1][dim];
+        for (int i = 0; i < buffers.size(); i++) {
+            tfLite.run(buffers.get(i), feature);
+            //float[][] feature = (float[][])features.get(i);
+            for (int j = 0; j < dim; j++) {
+                composeFeature[j] += weights[i] * feature[0][j];
+            }
+        }
+        ScoreEntry[] topK = new ScoreEntry[k];
+        for (int i = 0; i < k; i++) {
+            topK[i] = new ScoreEntry(0,0);
+        }
+
+        for (int i = 0; i < features.size(); i++) {
+            float [] item = features.get(i);
+            double score = 0;
+            for (int j = 0; j < dim; j++) {
+                score += composeFeature[j] * item[j];
+            }
+            double n1 = norm(composeFeature);
+            double n2 = featuresNorm.get(i);
+            score = score / (norm(composeFeature) * featuresNorm.get(i));
+
+            for (int j = k - 1; j >= 0; j--) {
+                if (j == 0 && score > topK[0].score) {
+                    for (int n = k-1; n>0; n--) {
+                        topK[n] = topK[n-1];
+                    }
+                    topK[0] = new ScoreEntry(score, i);
+                } else if (j > 0 && score > topK[j].score && score < topK[j-1].score) {
+                    for (int n = k - 1; n > j; n--) {
+                        topK[n] = topK[n - 1];
+                    }
+                    topK[j] = new ScoreEntry(score, i);
+                    break;
+                }
+            }
+        }
+
+        List<ScoreEntry> array = new ArrayList<>();
+        for (int i = 0; i < k; i++) {
+            if (topK[i].score>=threshold) {
+                array.add(topK[i]);
+            }
+        }
+        return array;
     }
 
     private float[] runModelOnBinary(HashMap args) throws IOException {

@@ -1,17 +1,16 @@
-import 'package:equatable/equatable.dart';
 
-class ArtPredict extends Equatable {
+class ArtPredict {
   final int id;
   final double score;
 
-  ArtPredict({this.id, this.score}) : super([id, score]);
+  ArtPredict({this.id, this.score});
 
   factory ArtPredict.fromJson(Map<String, dynamic> json) {
     return ArtPredict(id: json['ArtID'], score: json['Score']);
   }
 }
 
-class ArtInfo extends Equatable {
+class ArtInfo {
   final int id;
   final int museumId;
   final int artistId;
@@ -28,14 +27,8 @@ class ArtInfo extends Equatable {
   final String museumName;
   final String museumCity;
   final String museumCountry;
-
-  double _score;
-
-  set score(double v) {
-    _score = v;
-  }
-
-  double get score => _score;
+  
+  double predictScore = 0;
 
   ArtInfo(
       {this.id,
@@ -53,25 +46,7 @@ class ArtInfo extends Equatable {
       this.material,
       this.museumName,
       this.museumCity,
-      this.museumCountry})
-      : super([
-          id,
-          museumId,
-          artistId,
-          displayNumber,
-          creationYear,
-          price,
-          title,
-          category,
-          location,
-          images,
-          audios,
-          text,
-          material,
-          museumName,
-          museumCity,
-          museumCountry
-        ]);
+      this.museumCountry});
 
   factory ArtInfo.fromJson(Map<String, dynamic> json) {
     return ArtInfo(

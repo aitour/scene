@@ -56,7 +56,9 @@ Mfaobject _$MfaobjectFromJson(Map<String, dynamic> json) {
     ..metadataDate = json['metadataDate'] as String
     ..repository = json['repository'] as String
     ..objectURL = json['objectURL'] as String
-    ..tags = json['tags'] as List;
+    ..tags = json['tags'] as List
+    ..imgWidth = (json['imgWidth'] as num) ?? 0
+    ..imgHeight = (json['imgHeight'] as num) ?? 0;
 }
 
 Map<String, dynamic> _$MfaobjectToJson(Mfaobject instance) => <String, dynamic>{
@@ -108,5 +110,7 @@ Map<String, dynamic> _$MfaobjectToJson(Mfaobject instance) => <String, dynamic>{
       'metadataDate': instance.metadataDate,
       'repository': instance.repository,
       'objectURL': instance.objectURL,
-      'tags': instance.tags
+      'tags': instance.tags,
+      'imgWidth' : instance.imgWidth,
+      'imgHeight' : instance.imgHeight
     };

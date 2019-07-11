@@ -19,20 +19,42 @@ class S implements WidgetsLocalizations {
   @override
   TextDirection get textDirection => TextDirection.ltr;
 
+  String get aboutUs => "About Us";
   String get applicationName => "AiTour";
   String get calculating => "Calculating, please wait...";
   String get cancelButtonLabel => "CANCEL";
   String get close => "Close";
+  String get comments => "Comments";
+  String get donate => "Donate";
+  String get downloading => "Downloading, please wait...";
   String get error => "Error";
+  String get favorite => "Favorites";
   String get loadingModel => "loading modal...";
+  String get okButtonLabel => "OK";
   String get predictError => "Predict error";
+  String get predictMethod => "Predict Method";
+  String get predictMethodImages => "Pick picture from gallery";
+  String get predictMethodLive => "Live";
+  String get predictMethodTakePhoto => "Take Photo";
+  String get predictNoMatch => "Can't recognize it";
   String get predictResult => "Predict result";
   String get preferedLanguage => "Language";
+  String get settings => "Settings";
+  String get settingsGeneral => "General";
+  String get settingsPredict => "Predict";
+  String get signIn => "Sign in";
+  String get signInWith => "Login Width";
+  String get signOut => "Sign out";
+  String get signUp => "Sign up";
   String get tabHome => "Home";
+  String get tabOpen => "Open";
   String get tabProfile => "Profile";
   String get tabTour => "Tour";
   String get takePhoto => "Take Photo";
   String get takePhotoAndPredict => "Take Photo And Recognize it";
+  String get threshold => "threshold";
+  String get topK => "topK";
+  String get welcome => "Welcome";
 }
 
 class $zh_TW extends S {
@@ -42,7 +64,55 @@ class $zh_TW extends S {
   TextDirection get textDirection => TextDirection.ltr;
 
   @override
+  String get aboutUs => "關於我們";
+  @override
+  String get settingsPredict => "識別";
+  @override
+  String get predictMethodImages => "圖片庫選取";
+  @override
+  String get threshold => "閾值";
+  @override
+  String get error => "錯誤";
+  @override
+  String get predictNoMatch => "未找到可以識別的目標";
+  @override
+  String get predictMethodTakePhoto => "拍照";
+  @override
+  String get signUp => "註冊";
+  @override
+  String get predictResult => "識別结果";
+  @override
+  String get cancelButtonLabel => "取消";
+  @override
+  String get downloading => "下載中, 請稍侯...";
+  @override
+  String get donate => "捐贈";
+  @override
+  String get tabOpen => "開放";
+  @override
+  String get welcome => "歡迎";
+  @override
+  String get close => "關閉";
+  @override
+  String get applicationName => "AiTour";
+  @override
+  String get okButtonLabel => "確認";
+  @override
+  String get topK => "topK";
+  @override
+  String get settings => "設置";
+  @override
+  String get comments => "評論";
+  @override
+  String get predictMethod => "模式";
+  @override
+  String get predictMethodLive => "掃描";
+  @override
   String get tabTour => "向導";
+  @override
+  String get settingsGeneral => "通用";
+  @override
+  String get signOut => "退出";
   @override
   String get calculating => "計算中，請稍候...";
   @override
@@ -52,23 +122,19 @@ class $zh_TW extends S {
   @override
   String get takePhotoAndPredict => "拍照識別";
   @override
-  String get error => "錯誤";
-  @override
   String get preferedLanguage => "語言";
-  @override
-  String get predictResult => "識別结果";
   @override
   String get predictError => "識別錯誤";
   @override
-  String get cancelButtonLabel => "取消";
-  @override
   String get tabHome => "主頁";
+  @override
+  String get signInWith => "使用以下方式登陸";
+  @override
+  String get signIn => "登錄";
   @override
   String get tabProfile => "我的";
   @override
-  String get close => "關閉";
-  @override
-  String get applicationName => "AiTour";
+  String get favorite => "收藏";
 }
 
 class $en extends S {
@@ -82,7 +148,55 @@ class $zh_CN extends S {
   TextDirection get textDirection => TextDirection.ltr;
 
   @override
+  String get aboutUs => "关于我们";
+  @override
+  String get settingsPredict => "识别";
+  @override
+  String get predictMethodImages => "图片库选取";
+  @override
+  String get threshold => "阈值";
+  @override
+  String get error => "错误";
+  @override
+  String get predictNoMatch => "未找到可以识别的目标";
+  @override
+  String get predictMethodTakePhoto => "拍照";
+  @override
+  String get signUp => "注册";
+  @override
+  String get predictResult => "识别结果";
+  @override
+  String get cancelButtonLabel => "取消";
+  @override
+  String get downloading => "下载中, 请稍侯...";
+  @override
+  String get donate => "捐赠";
+  @override
+  String get tabOpen => "开放";
+  @override
+  String get welcome => "欢迎";
+  @override
+  String get close => "关闭";
+  @override
+  String get applicationName => "AiTour";
+  @override
+  String get okButtonLabel => "确认";
+  @override
+  String get topK => "topK";
+  @override
+  String get settings => "设置";
+  @override
+  String get comments => "评论";
+  @override
+  String get predictMethod => "模式";
+  @override
+  String get predictMethodLive => "扫描";
+  @override
   String get tabTour => "向导";
+  @override
+  String get settingsGeneral => "通用";
+  @override
+  String get signOut => "退出";
   @override
   String get calculating => "计算中, 请稍候...";
   @override
@@ -92,23 +206,19 @@ class $zh_CN extends S {
   @override
   String get takePhotoAndPredict => "拍照识别";
   @override
-  String get error => "错误";
-  @override
   String get preferedLanguage => "语言";
-  @override
-  String get predictResult => "识别结果";
   @override
   String get predictError => "识别错误";
   @override
-  String get cancelButtonLabel => "取消";
-  @override
   String get tabHome => "主页";
+  @override
+  String get signInWith => "使用以下方式登陆";
+  @override
+  String get signIn => "登陆";
   @override
   String get tabProfile => "我的";
   @override
-  String get close => "关闭";
-  @override
-  String get applicationName => "AiTour";
+  String get favorite => "收藏";
 }
 
 class GeneratedLocalizationsDelegate extends LocalizationsDelegate<S> {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:crypto/crypto.dart';
@@ -32,7 +33,13 @@ class TfModelHelper {
       bool deleteExpired) async {
     if (_updateChecked) return null;
 
-    syncList = await api.getModelList();
+    try {
+        syncList = await api.getModelList();
+    }catch(e) {
+      _loadModel();
+      return null;
+    }
+    
     var list = (json.decode(syncList) as Map)['models'] as List;
     var models = list.map((m) => FileInfo.fromJson(m)).toList();
 
@@ -91,67 +98,80 @@ class TfModelHelper {
     return progress;
   }
 
-  Future<List<ArtPredict>> predict(String imagePath) async {
-    List<int> feature =
-        await tflite.invokeMethod('runModelOnImage', <String, dynamic>{
-      'path': imagePath,
-      'inputSize': 224, // wanted input size, defaults to 224
-      'numChannels': 3, // wanted input channels, defaults to 3
-      'imageMean': 127.5, // defaults to 117.0
-      'imageStd': 127.5, // defaults to 1.0
-      'numResults': 6, // defaults to 5
-      'threshold': 0.05, // defaults to 0.1
-      'numThreads': 1, // defaults to 1
-    });
+  // Future<List<ArtPredict>> predict(String imagePath) async {
+  //   List<int> feature =
+  //       await tflite.invokeMethod('runModelOnImage', <String, dynamic>{
+  //     'path': imagePath,
+  //     'inputSize': 224, // wanted input size, defaults to 224
+  //     'numChannels': 3, // wanted input channels, defaults to 3
+  //     'imageMean': 127.5, // defaults to 117.0
+  //     'imageStd': 127.5, // defaults to 1.0
+  //     'numResults': 6, // defaults to 5
+  //     'threshold': 0.8, // defaults to 0.1
+  //     'numThreads': 1, // defaults to 1
+  //   });
 
-    var results = api.predict(feature, 5);
-    // var scaledImage = event.imagePath + ".scale";
-    // Map<String, IfdTag> data =
-    //     await readExifFromBytes(await new File(scaledImage).readAsBytes());
-    // if (data == null || data.isEmpty) {
-    //   print("No EXIF information found");
-    // } else {
-    //   for (String key in data.keys) {
-    //     print("$key (${data[key].tagType}): ${data[key]}");
-    //   }
-    // }
+  //   var results = api.predict(feature, 5);
+  //   // var scaledImage = event.imagePath + ".scale";
+  //   // Map<String, IfdTag> data =
+  //   //     await readExifFromBytes(await new File(scaledImage).readAsBytes());
+  //   // if (data == null || data.isEmpty) {
+  //   //   print("No EXIF information found");
+  //   // } else {
+  //   //   for (String key in data.keys) {
+  //   //     print("$key (${data[key].tagType}): ${data[key]}");
+  //   //   }
+  //   // }
 
-    //upload the scaled image
-    api.uploadPhoto(imagePath + ".scale");
+  //   //upload the scaled image
+  //   api.uploadPhoto(imagePath + ".scale");
 
-    return results;
-  }
+  //   return results;
+  // }
 
-  Future<List<ArtPredict>> predictOnImage(CameraImage image) async {
-    List<int> scores =
-        await tflite.invokeMethod('runModelOnImageOffline', <String, dynamic>{
-      'bytesList': image.planes.map((plane) {
-        return plane.bytes;
-      }).toList(),
+  Future<List<ArtPredict>> predictOnImage(dynamic image, int orientation, int topK, double threshold) async {
+    var args = <String, dynamic>{
       'rotation': 0,
-      'imageHeight': image.height,
-      'imageWidth': image.width,
       'inputSize': 224, // wanted input size, defaults to 224
       'numChannels': 3, // wanted input channels, defaults to 3
       'imageMean': 127.5, // defaults to 117.0
       'imageStd': 127.5, // defaults to 1.0
       'numResults': 6, // defaults to 5
-      'threshold': 0.05, // defaults to 0.1
+      'threshold': threshold, // defaults to 0.1
       'numThreads': 1, // defaults to 1
-      'k': 5, //top 5
-    });
-
-    //var results = api.predict(feature, 5);
-
-    List<ArtPredict> results = new List();
-    int count = scores[0].toDouble().toInt();
-    for (int i = 0; i < count; i++) {
-      results.add(ArtPredict(
-          id: scores[i * 2 + 1].toDouble().toInt(),
-          score: scores[i * 2 + 2].toDouble()));
+      'k': topK, //top 5
+    };
+    if (image is String) {
+      args['path'] = image;
+    } else if (image is CameraImage) {
+      args['bytesList'] = image.planes.map((plane) {
+        return plane.bytes;
+      }).toList();
+      args['imageHeight'] = image.height;
+      args['imageWidth'] = image.width;
+      args['orientation'] = orientation;
+      //print('native orientation: $orientation');
     }
 
-    return results;
+    List<int> result = await tflite.invokeMethod('runModelOnImage', args);
+    ByteBuffer buffer = new Uint8List.fromList(result).buffer;
+    ByteData byteData = ByteData.view(buffer);
+    int count = byteData.getFloat32(0, Endian.little).toInt();
+    if (count == -1) {
+      //返回了一个feature， 需要发送到服务器做匹配
+      result.removeRange(0, 4); //remove first 4 bytes
+      return api.predict(result, 5);
+    } else {
+      //返回了topK的匹配
+      List<ArtPredict> matches = new List();
+      for (int i = 0; i < count; i++) {
+        var index = byteData.getFloat32(i * 8 + 4, Endian.little).toInt();
+        var score = byteData.getFloat32(i * 8 + 8, Endian.little).toDouble();
+        print("id: $index, score:$score");
+        matches.add(ArtPredict(id: index, score: score));
+      }
+      return matches;
+    }
   }
 
   Future<bool> _loadModel() async {
@@ -162,17 +182,19 @@ class TfModelHelper {
     if (localModels.length == 0) return false;
     var lowDimModel =
         localModels.firstWhere((model) => model.name.endsWith("_512.tflite"));
+    //localModels.firstWhere((model) => model.name.endsWith("_1280.tflite"));
     var lowDimIndex = localModels
         .firstWhere((model) => model.name.endsWith("_512.tflite.dat"));
 
     if (lowDimModel != null && lowDimIndex != null) {
       var modelPath = '${appVars.appDocDir}/models/${lowDimModel.name}';
       var indexPath = '${appVars.appDocDir}/models/${lowDimIndex.name}';
+      //var indexPath = '';
       final String result = await tflite.invokeMethod(
           'loadModel', {'model': '$modelPath', 'index': '$indexPath'});
 
       if (result != "success") {
-        modelLoadComplete.complete(result);        
+        modelLoadComplete.complete(result);
       }
     }
     modelLoadComplete.complete("success");

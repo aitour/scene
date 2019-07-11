@@ -2,8 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh_CN</string>
+		<string>zh_TW</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>we need access the camera to capture images</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>we need to access image gallery</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>we need to access your microphone</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -49,6 +59,26 @@
 	<array>
 		<string>fetch</string>
 		<string>remote-notification</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fb186885222135849</string>
+			</array>
+		</dict>
+	</array>
+	<key>FacebookAppID</key>
+	<string>186885222135849</string>
+	<key>FacebookDisplayName</key>
+	<string>aitour</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>fbapi</string>
+		<string>fb-messenger-share-api</string>
+		<string>fbauth2</string>
+		<string>fbshareextension</string>
 	</array>
 </dict>
 </plist>

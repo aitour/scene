@@ -12,16 +12,21 @@ class ArtModel extends BaseModel {
 
   Future fetchArt(List<ArtPredict> predicts) async {
     setState(ViewState.Busy);
+    arts.clear();
     for (var pred in predicts) {
-      var artItem = await api.fetchArt(pred.id);
+      try {
+        var artItem = await api.fetchArt(pred.id);
         if (artItem != null) {
-        artItem.predictScore = pred.score;
-        arts.add(artItem);
-        arts.sort((a, b) => a.predictScore > b.predictScore ? -1 : 1);
-        setState(ViewState.PartReady);
+          artItem.predictScore = pred.score;
+          arts.add(artItem);
+          arts.sort((a, b) => a.predictScore > b.predictScore ? -1 : 1);
+          setState(ViewState.PartReady);
+        }
+      } catch (e) {
+        print(e);
       }
     }
-    
+
     setState(ViewState.Idle);
   }
 }

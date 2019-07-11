@@ -23,7 +23,7 @@ dependencies:
   cupertino_icons: ^0.1.2
   #geolocator: ^2.1.1
   camera: 
-  #image_picker: ^0.4.10
+  image_picker: 
   shared_preferences: 
   path_provider: 
   video_player: 
@@ -41,6 +41,13 @@ dependencies:
   get_it:
   url_launcher:
   webview_flutter:
+  sqflite:
+  pull_to_refresh:
+  fluttertoast: ^3.1.0
+  flutter_facebook_login: 
+  native_device_orientation:
+  fluro:
+    git: git://github.com/fanhero/fluro.git
   
 
 dev_dependencies:
@@ -50,6 +57,17 @@ dev_dependencies:
   json_model: #latest version
   build_runner: ^1.0.0
   json_serializable: ^2.0.0
+  flutter_launcher_icons: "^0.7.0"
+
+#how to make a launcher icon
+#https://medium.com/@psyanite/how-to-add-app-launcher-icons-in-flutter-bd92b0e0873a
+flutter_icons:
+  ios: true
+  android: true
+  image_path_ios: "assets/launcher/ic_launcher.png"
+  image_path_android: "assets/launcher/ic_launcher.png"
+  #adaptive_icon_background: "assets/launcher/background.png"
+  #adaptive_icon_foreground: "assets/launcher/ic_launcher_foreground.png"
 
 
 # For information on the generic Dart part of this file, see the
@@ -95,3 +113,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.io/custom-fonts/#from-packages
+
+  fonts:
+    - family: iconfont
+      fonts:
+        - asset: assets/fonts/iconfont.ttf

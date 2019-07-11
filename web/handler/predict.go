@@ -370,13 +370,21 @@ func GetArtById(c *gin.Context) {
 		})
 		return
 	}
-	language_id, err := strconv.Atoi(c.Query("language"))
-	if err != nil {
-		language_id = 2
+
+	//1: english, 2: chinese
+	languageID := 1
+	if lang, err := strconv.Atoi(c.Query("language")); err == nil {
+		languageID = lang
+	} else {
+		if lang:= c.Query("language"); strings.HasPrefix(lang, "zh") {
+			languageID = 2;
+		} else if strings.HasPrefix(lang, "en")  {
+			languageID = 1;
+		}
 	}
 
-	assets_path := "/assets/MET/"
-	art, err := model.GetArtById(artid, language_id)
+	assetsPath := "/assets/MET/"
+	art, err := model.GetArtById(artid, languageID)
 
 	if err != nil {
 		log.Printf("err:%v", err)
@@ -387,10 +395,10 @@ func GetArtById(c *gin.Context) {
 	}
 
 	for i := 0; i < len(art.Images); i++ {
-		art.Images[i] = assets_path + "Images/" + art.Images[i] + ".jpg"
+		art.Images[i] = assetsPath + "Images/" + art.Images[i] + ".jpg"
 	}
 	for i := 0; i < len(art.Audios); i++ {
-		art.Audios[i] = assets_path + "Audio/" + art.Audios[i]
+		art.Audios[i] = assetsPath + "Audio/" + art.Audios[i]
 	}
 
 	c.JSON(http.StatusOK, gin.H{

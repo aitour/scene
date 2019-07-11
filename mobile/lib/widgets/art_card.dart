@@ -1,4 +1,5 @@
 //import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/art.dart';
 import 'package:mobile/services/api.dart';
@@ -18,16 +19,16 @@ class ArtCard extends StatelessWidget {
       subtitle: Text('${art.museumName} / ${art.category}'),
     ));
 
-    // art.images.forEach((url) {
-    //   widgets.add(CachedNetworkImage(
-    //     //imageUrl: "http://via.placeholder.com/350x150",
-    //     imageUrl: art.images[0].startsWith("/")
-    //         ? "${Api.cdn}${art.images[0]}"
-    //         : "${Api.cdn}/${art.images[0]}",
-    //     placeholder: new CircularProgressIndicator(),
-    //     errorWidget: new Icon(Icons.broken_image),
-    //   ));
-    // });
+    art.images.forEach((url) {
+      widgets.add(CachedNetworkImage(
+        //imageUrl: "http://via.placeholder.com/350x150",
+        imageUrl: art.images[0].startsWith("/")
+            ? "${Api.cdn}${art.images[0]}"
+            : "${Api.cdn}/${art.images[0]}",
+        //placeholder: new CircularProgressIndicator(),
+        //errorWidget: new Icon(Icons.broken_image),
+      ));
+    });
 
     art.audios.forEach((url) {
       widgets.add(AudioPlayerWidget(

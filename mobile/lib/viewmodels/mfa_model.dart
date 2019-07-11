@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:mobile/locator.dart';
 import 'package:mobile/models/index.dart';
+import 'package:mobile/services/db_helper.dart';
 import 'package:mobile/services/mfa_service.dart';
 import 'package:mobile/viewmodels/base_model.dart';
 
@@ -9,8 +11,12 @@ class MfaModel extends BaseModel {
   MfaApi api = locator<MfaApi>();
 
   List<MfaDepartment> departments;
-  List<int> objects;
-  String query;
+  static List<int> _objects;
+  String query; 
+
+  List<int> get objects  {
+    return _objects;
+  }
 
   Future<List<MfaDepartment>> fetchDepartments() async {
     if (departments == null) {
@@ -20,16 +26,26 @@ class MfaModel extends BaseModel {
   }
 
   Future<List<int>> fetchMfaObjectsWithImages() async {
-    if (objects == null) {
+    if (_objects == null) {
       setState(ViewState.Busy);
-      objects = await api.getMfaObjectsWithImages();
+      _objects = await api.getMfaObjectsWithImages();
       setState(ViewState.Idle);
     }
-    return objects;
+    return _objects;
   }
 
   Future<Mfaobject> fetchMfaObject(int id) async {
-    return await api.getMfaObject(id);
+    var db = locator<DatabaseHelper>();
+    var content = await db.getMfaObject(id);
+    if (content.length > 0) {
+      return Mfaobject.fromJson(json.decode(content));
+    }
+    //fetch from network
+    var obj = await api.getMfaObject(id);
+    //write to db and cache it
+    db.insertMfaObject(obj.objectID, json.encode(obj));
+
+    return obj;
   }
 
   Future<List<int>> fetchQueryObjects(String query) async {
@@ -37,5 +53,11 @@ class MfaModel extends BaseModel {
     var results =  await api.getObjectsWithQuery(query);
     setState(ViewState.Idle);
     return results;
+  }
+
+  @override
+  void dispose() {
+    print("MFAModel disposed");
+    super.dispose();
   }
 }

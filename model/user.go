@@ -85,7 +85,9 @@ var (
 	`
 
 	sqlGetUserProfile = `
-	SELECT lang,nickname,avatar FROM ai_user_profile WHERE user_id=$1
+	SELECT lang,nickname,avatar,email
+	FROM ai_user, ai_user_profile 
+	WHERE ai_user.id = ai_user_profile.user_id and ai_user.id=$1
 	`
 
 	sqlGetOauthInfo = `
@@ -103,6 +105,8 @@ type User struct {
 	Phone    string
 	Password string
 	Email    string
+	Avatar   string
+	Locale   string
 	CreateAt time.Time `db:"create_at"`
 }
 
@@ -110,6 +114,7 @@ type UserProfile struct {
 	Id       int64  `json:"-"`
 	Lang     string `json:"lang"`
 	NickName string `json:"nickname"`
+	Email 	string `json:"email"`
 	Avatar   string `json:"avatar"`
 }
 
@@ -202,12 +207,12 @@ func VerifyUserById(uid int64, password string) (*User, error) {
 }
 
 func VerifyUserByOpenId(platform, openid string) (*User, error) {
-	var user User
-	err := db.Get(&user.Id, sqlGetUserBindwithOpenId, platform, openid)
+	var userId int64
+	err := db.Get(&userId, sqlGetUserBindwithOpenId, platform, openid)
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
-	return &user, nil
+	return &User{Id: userId}, nil
 }
 
 func SetUserPassword(uid int64, password string) error {
@@ -233,9 +238,9 @@ func ActivateUser(email string) bool {
 // -- user profile --
 func GetUserProfile(uid int64) (*UserProfile, error) {
 	var profile UserProfile
-	var lang, nickname, avatar sql.NullString
+	var lang, nickname, avatar, email sql.NullString
 	row := db.QueryRow(sqlGetUserProfile, uid)
-	if err := row.Scan(&lang, &nickname, &avatar); err != nil {
+	if err := row.Scan(&lang, &nickname, &avatar, &email); err != nil {
 		return nil, err
 	}
 	if lang.Valid {
@@ -246,6 +251,9 @@ func GetUserProfile(uid int64) (*UserProfile, error) {
 	}
 	if avatar.Valid {
 		profile.Avatar = avatar.String
+	}
+	if email.Valid {
+		profile.Email = email.String
 	}
 	return &profile, nil
 }

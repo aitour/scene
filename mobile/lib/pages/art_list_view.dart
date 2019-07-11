@@ -38,6 +38,7 @@ class ArtListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BaseView<ArtModel>(
+      disposeModel: false,
       onModelReady: (model) => model.fetchArt(predicts),
       builder: (context, model, child) => Scaffold(
             appBar: AppBar(

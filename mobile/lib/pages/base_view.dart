@@ -6,8 +6,9 @@ import 'package:provider/provider.dart';
 class BaseView<T extends BaseModel> extends StatefulWidget {
   final Widget Function(BuildContext context, T model, Widget child) builder;
   final Function(T) onModelReady;
+  final bool disposeModel;
 
-  BaseView({this.builder, this.onModelReady});
+  BaseView({this.builder, this.onModelReady, this.disposeModel=true});
 
   @override
   State<StatefulWidget> createState() {
@@ -20,17 +21,27 @@ class _BaseViewState<T extends BaseModel> extends State<BaseView<T>> {
 
   @override
   void initState() {
+    super.initState();
+
     if (widget.onModelReady != null) {
       widget.onModelReady(model);
     }
-    super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<T>(
-      builder: (context)=> model,
-      child: Consumer<T>(builder: widget.builder),
-    );
+    if (widget.disposeModel) {
+      return ChangeNotifierProvider<T>(
+        builder: (context) => model,
+        child: Consumer<T>(
+          builder: widget.builder,
+        ),
+      );
+    } else {
+      return ChangeNotifierProvider<T>.value(
+        value: model,
+        child: Consumer<T>(builder: widget.builder),
+      );
+    }
   }
 }

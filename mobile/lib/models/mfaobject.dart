@@ -55,6 +55,9 @@ class Mfaobject {
     String repository;
     String objectURL;
     List tags;
+
+    int imgWidth;
+    int imgHeight;
     
     factory Mfaobject.fromJson(Map<String,dynamic> json) => _$MfaobjectFromJson(json);
     Map<String, dynamic> toJson() => _$MfaobjectToJson(this);

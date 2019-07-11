@@ -38,9 +38,18 @@ func AuthWeibo(c *gin.Context) {
 
 }
 
-func bindOpenId(c *gin.Context, platform string, email string, openid string, name string, picture string, locale string) {
+func bindOpenId(platform string,
+	email string,
+	openid string,
+	name string,
+	picture string,
+	locale string) (*model.User, error) {
 	//检查数据库是否存在Email对应的账户
 	user, err := model.VerifyUserByOpenId(platform, openid)
+	if err != nil {
+		fmt.Printf("model.VerifyUserByOpenId error: %v\n", err)
+		return nil, err
+	}
 	// if err != nil {
 	// 	log.WithFields(log.Fields{"err": err}).Error("Verify user by openid error")
 	// 	c.HTML(http.StatusOK, "signin.html", gin.H{
@@ -53,10 +62,7 @@ func bindOpenId(c *gin.Context, platform string, email string, openid string, na
 		//创建并绑定账户
 		if user, err = model.BindOpenId(platform, email, openid); err != nil {
 			log.WithFields(log.Fields{"err": err, "platform": platform, "email": email, "openid": openid}).Error("bind user error")
-			c.HTML(http.StatusOK, "signin.html", gin.H{
-				"error": err,
-			})
-			return
+			return nil, err
 		}
 
 		//设置avartar
@@ -68,16 +74,25 @@ func bindOpenId(c *gin.Context, platform string, email string, openid string, na
 		})
 		if err != nil {
 			log.WithFields(log.Fields{"err": err}).Error("set user profile error")
-			c.HTML(http.StatusOK, "signin.html", gin.H{
-				"error": err,
-			})
-			return
+			return nil, err
 		}
+		user.Name = name
+		user.Email = email
+		user.Avatar = picture
+		user.Locale = locale
+	} else {
+		//read user info
+		profile, err := model.GetUserProfile(user.Id)
+		if err != nil {
+			return nil, err
+		}
+		user.Name = profile.NickName
+		user.Email = profile.Email
+		user.Avatar = profile.Avatar
+		user.Locale = profile.Lang
 	}
 
-	if user != nil {
-		signInUser(c, user.Id)
-	}
+	return user, nil
 }
 
 func bindGoogle(c *gin.Context) {
@@ -130,7 +145,13 @@ func bindGoogle(c *gin.Context) {
 		})
 		return
 	}
-	bindOpenId(c, "fb", userInfo.Email, userInfo.ID, userInfo.Name, userInfo.Picture, userInfo.Locale)
+	user, err := bindOpenId("fb", userInfo.Email, userInfo.ID, userInfo.Name, userInfo.Picture, userInfo.Locale)
+	if err != nil {
+		c.HTML(http.StatusOK, "signin.html", gin.H{
+			"error": err,
+		})
+	}
+	signInUser(c, user.Id)
 	// defer response.Body.Close()
 	// contents, err := ioutil.ReadAll(response.Body)
 	// fmt.Fprintf(c.Writer, "Content: %s\n", contents)
@@ -166,13 +187,27 @@ func bindFaceBook(c *gin.Context) {
 		log.WithFields(log.Fields{"err": err}).Warn("exchange token error")
 	}
 
+	user, err := associateFacebookToken(token.AccessToken)
+	if err != nil {
+		c.HTML(http.StatusOK, "signin.html", gin.H{
+			"error": err,
+		})
+	}
+	signInUser(c, user.Id)
+}
+
+func associateFacebookToken(fbAccessToken string) (*model.User, error) {
 	query := &url.Values{}
-	query.Set("access_token", token.AccessToken)
-	query.Set("fields", "id,name,email,picture.type(large)")
+	query.Set("access_token", fbAccessToken)
+	query.Set("fields", "id,name,email,picture.type(small)")
 	query.Set("method", "get")
 	query.Set("sdk", "joey")
 	query.Set("suppress_http_code", "1")
 	response, err := http.Get("https://graph.facebook.com/v2.8/me?" + query.Encode())
+	if err != nil {
+		fmt.Printf("http graph get err: %v\n", err)
+		return nil, err
+	}
 
 	var userInfo struct {
 		ID      string
@@ -190,12 +225,34 @@ func bindFaceBook(c *gin.Context) {
 	content, _ := ioutil.ReadAll(response.Body)
 	if err := json.Unmarshal(content, &userInfo); err != nil {
 		log.WithFields(log.Fields{"err": err, "content": content}).Error("decode facebook user info error")
-		c.HTML(http.StatusOK, "signin.html", gin.H{
-			"error": err,
-		})
+		fmt.Printf("json decode error: %v\n", err)
+		return nil, err
+	}
+	return bindOpenId("fb", userInfo.Email, userInfo.ID, userInfo.Name, userInfo.Picture.Data.Url, "")
+}
+
+func associateFaceBookTokenHandler(c *gin.Context) {
+	accessToken := c.PostForm("access_token")
+	if len(accessToken) == 0 {
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	bindOpenId(c, "fb", userInfo.Email, userInfo.ID, userInfo.Name, userInfo.Picture.Data.Url, "")
+	user, err := associateFacebookToken(accessToken)
+	if err != nil {
+		print(err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	uid := fmt.Sprintf("%d", user.Id)
+	token, _ := tokenProvider.AssignToken(uid)
+
+	c.JSON(http.StatusOK, map[string]string{
+		"uid":          fmt.Sprintf("%d", user.Id),
+		"email":        user.Email,
+		"access_token": token,
+		"name":         user.Name,
+	})
 }
 
 func SetupThirdPartyAuthHandlers(r *gin.Engine) {
@@ -205,4 +262,5 @@ func SetupThirdPartyAuthHandlers(r *gin.Engine) {
 
 	r.GET("/openid/google", bindGoogle)
 	r.GET("/openid/facebook", bindFaceBook)
+	r.POST("/associate/facebook", associateFaceBookTokenHandler)
 }
